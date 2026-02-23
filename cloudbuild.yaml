@@ -1,4 +1,5 @@
 steps:
+  # Step 1: Build the container image
   - name: gcr.io/cloud-builders/docker
     args:
       - build
@@ -7,6 +8,17 @@ steps:
       - -f
       - Dockerfile
       - .
+
+  # Step 2: Deploy to Cloud Run
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - primaryai-web-source
+      - --image=gcr.io/$PROJECT_ID/primaryai-web:$COMMIT_SHA
+      - --region=europe-west1
+      - --platform=managed
 
 images:
   - gcr.io/$PROJECT_ID/primaryai-web:$COMMIT_SHA
