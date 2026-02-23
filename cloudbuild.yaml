@@ -1,28 +1,35 @@
 steps:
-  # Step 1: Build the container image
+  # Step 1: Build the container image using the modern Artifact Registry path
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/primary-ai-saas/primaryai-web:$COMMIT_SHA', '.']
+    args: 
+      - 'build'
+      - '-t'
+      - 'europe-west1-docker.pkg.dev/primary-ai-saas/primaryai-repo/primaryai-web:$COMMIT_SHA'
+      - '.'
 
-  # Step 2: Push the image to Artifact Registry (THIS WAS MISSING)
+  # Step 2: Push the image to the new Artifact Registry repository
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/primary-ai-saas/primaryai-web:$COMMIT_SHA']
+    args: 
+      - 'push'
+      - 'europe-west1-docker.pkg.dev/primary-ai-saas/primaryai-repo/primaryai-web:$COMMIT_SHA'
 
-  # Step 3: Deploy to Cloud Run
+  # Step 3: Deploy to Cloud Run using the new image location
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: 'gcloud'
     args:
       - 'run'
       - 'deploy'
       - 'primaryai-web-source'
-      - '--image=gcr.io/primary-ai-saas/primaryai-web:$COMMIT_SHA'
+      - '--image=europe-west1-docker.pkg.dev/primary-ai-saas/primaryai-repo/primaryai-web:$COMMIT_SHA'
       - '--region=europe-west1'
       - '--platform=managed'
       - '--allow-unauthenticated'
       - '--project=primary-ai-saas'
       - '--quiet'
 
+# Store the image in your registry permanently
 images:
-  - 'gcr.io/primary-ai-saas/primaryai-web:$COMMIT_SHA'
+  - 'europe-west1-docker.pkg.dev/primary-ai-saas/primaryai-repo/primaryai-web:$COMMIT_SHA'
 
 options:
   logging: CLOUD_LOGGING_ONLY
