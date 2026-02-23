@@ -1,27 +1,24 @@
 steps:
   # Step 1: Build the container image
-  - name: gcr.io/cloud-builders/docker
-    args:
-      - build
-      - -t
-      - gcr.io/$PROJECT_ID/primaryai-web:$COMMIT_SHA
-      - -f
-      - Dockerfile
-      - .
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/primary-ai-saas/primaryai-web:$COMMIT_SHA', '.']
 
   # Step 2: Deploy to Cloud Run
-  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
-    entrypoint: gcloud
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
     args:
-      - run
-      - deploy
-      - primaryai-web-source
-      - --image=gcr.io/$PROJECT_ID/primaryai-web:$COMMIT_SHA
-      - --region=europe-west1
-      - --platform=managed
+      - 'run'
+      - 'deploy'
+      - 'primaryai-web-source'
+      - '--image=gcr.io/primary-ai-saas/primaryai-web:$COMMIT_SHA'
+      - '--region=europe-west1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--project=primary-ai-saas'
+      - '--quiet'  # This prevents the build from hanging on y/N prompts
 
 images:
-  - gcr.io/$PROJECT_ID/primaryai-web:$COMMIT_SHA
+  - 'gcr.io/primary-ai-saas/primaryai-web:$COMMIT_SHA'
 
 options:
   logging: CLOUD_LOGGING_ONLY
