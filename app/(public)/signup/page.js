@@ -28,6 +28,10 @@ export default function SignupPage({ searchParams }) {
             Create Account
           </button>
         </form>
+        <div className="divider">or</div>
+        <a className="button button-outline" href="/api/auth/oauth?provider=google">
+          Continue with Google
+        </a>
       </section>
       <p className="muted">
         Already have an account? <Link href="/login">Sign in</Link>

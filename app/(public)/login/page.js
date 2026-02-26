@@ -32,6 +32,10 @@ export default function LoginPage({ searchParams }) {
             Sign In
           </button>
         </form>
+        <div className="divider">or</div>
+        <a className="button button-outline" href="/api/auth/oauth?provider=google">
+          Continue with Google
+        </a>
       </section>
       <p className="muted">
         No account yet? <Link href="/signup">Create one</Link>
