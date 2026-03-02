@@ -36,6 +36,15 @@ export const LessonPackRequestSchema = z
     subject: z.string().min(1),
     topic: z.string().min(1),
     teacher_id: z.string().optional(),
+    profile: z
+      .object({
+        defaultYearGroup: z.string().optional().nullable(),
+        defaultSubject: z.string().optional().nullable(),
+        tone: z.string().optional().nullable(),
+        schoolType: z.string().optional().nullable(),
+        sendFocus: z.boolean().optional().nullable(),
+      })
+      .optional(),
   })
   .transform((value, ctx) => {
     const yearGroup = canonicalizeYearGroup(value.year_group);

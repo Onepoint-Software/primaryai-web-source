@@ -21,6 +21,12 @@ export default async function DashboardPage() {
           <a className="button" href="/lesson-pack">
             Open Lesson Pack Generator
           </a>
+          <a className="button" href="/settings">
+            Teacher Settings
+          </a>
+          <a className="button" href="/library">
+            Lesson Library
+          </a>
           <a className="button" href="/api/subscriptions/status">
             Check Subscription Status API
           </a>

@@ -10,12 +10,18 @@
     "setup:webhook": "bash scripts/register-stripe-webhook.sh",
     "config:check": "node scripts/check-config.mjs",
     "static:dev": "node scripts/dev-server.js",
-    "static:build": "node scripts/build.js"
+    "static:build": "node scripts/build.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev --name init_teacher_memory"
   },
   "dependencies": {
+    "@auth/prisma-adapter": "^2.7.4",
+    "@prisma/client": "^6.4.1",
     "@supabase/supabase-js": "^2.49.1",
     "jsoon": "^0.1.0",
     "next": "^15.2.0",
+    "next-auth": "^5.0.0-beta.25",
+    "prisma": "^6.4.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "stripe": "^18.2.0",

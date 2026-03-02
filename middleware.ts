@@ -5,7 +5,13 @@ import { requiresAuth, requiresPaidEntitlement } from "./lib/guard";
 function hasSupabaseSessionCookie(request: NextRequest) {
   return request.cookies
     .getAll()
-    .some((cookie) => cookie.name.includes("-auth-token") && cookie.value.length > 0);
+    .some(
+      (cookie) =>
+        (cookie.name.includes("-auth-token") ||
+          cookie.name.includes("authjs.session-token") ||
+          cookie.name.includes("next-auth.session-token")) &&
+        cookie.value.length > 0,
+    );
 }
 
 export function middleware(request: NextRequest) {
@@ -28,5 +34,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/account/:path*", "/billing/:path*"],
+  matcher: ["/dashboard/:path*", "/account/:path*", "/billing/:path*", "/settings/:path*", "/library/:path*"],
 };

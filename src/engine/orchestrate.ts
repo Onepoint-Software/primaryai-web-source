@@ -4,7 +4,6 @@ import { retrieveObjectives } from "./retrieve";
 import { cache } from "./cache";
 import { record } from "./telemetry";
 import { lessonPackToSlides } from "./exporters";
-import { getTeacherProfile } from "./profiles";
 import type { LessonPackRequest, LessonPackReview } from "./types";
 
 type ProviderAttempt = {
@@ -203,6 +202,21 @@ function scoreLessonPack(pack: LessonPack, objectives: string[]) {
   return objectiveCoverage * 5 + differentiationDepth * 3 + misconceptionsDepth * 2 + assessmentDepth;
 }
 
+function extractYearNumber(yearGroup: string) {
+  const match = yearGroup.match(/Year\s+([1-6])/i);
+  return match ? Number(match[1]) : null;
+}
+
+function normalizeUkSpelling(text: string) {
+  return text
+    .replace(/\bcolor\b/gi, "colour")
+    .replace(/\borganize\b/gi, "organise")
+    .replace(/\borganizing\b/gi, "organising")
+    .replace(/\bbehavior\b/gi, "behaviour")
+    .replace(/\bcenter\b/gi, "centre")
+    .replace(/\banalyze\b/gi, "analyse");
+}
+
 function objectiveCoverageCount(pack: LessonPack, objectives: string[]) {
   if (objectives.length === 0) return 0;
 
@@ -248,44 +262,80 @@ function ensureUsefulContent(pack: LessonPack, req: LessonPackRequest, objective
           `Apply learning about ${req.topic} in context`,
         ];
 
+  const objectiveList = pack.learning_objectives.filter((item) => item.trim().length > 0);
+  const completedObjectives = [...objectiveList];
+  for (const fallback of defaultObjectives) {
+    if (completedObjectives.length >= 3) break;
+    if (!completedObjectives.includes(fallback)) {
+      completedObjectives.push(fallback);
+    }
+  }
+
+  const year = extractYearNumber(req.year_group);
+  const greaterDepthDefault =
+    year && year <= 6
+      ? `Reasoning challenge: build and solve a multi-step equation from a word problem about ${req.topic}.`
+      : `Challenge task comparing multiple examples related to ${req.topic}.`;
+
+  const misconceptions = [...pack.common_misconceptions.filter((item) => item.trim().length > 0)];
+  while (misconceptions.length < 3) {
+    misconceptions.push(`Possible misunderstanding ${misconceptions.length + 1} linked to ${req.topic}.`);
+  }
+
+  const questions =
+    pack.mini_assessment.questions.filter((item) => item.trim().length > 0).length > 0
+      ? pack.mini_assessment.questions.filter((item) => item.trim().length > 0)
+      : [
+          `What is one key fact about ${req.topic}?`,
+          `How would you explain ${req.topic} to a partner?`,
+          `Give one example linked to ${req.topic}.`,
+        ];
+
+  const answers =
+    pack.mini_assessment.answers.filter((item) => item.trim().length > 0).length > 0
+      ? pack.mini_assessment.answers.filter((item) => item.trim().length > 0)
+      : [
+          `Mark scheme: a correct fact about ${req.topic}.`,
+          `Mark scheme: a clear explanation using subject vocabulary.`,
+          `Mark scheme: a relevant and accurate example.`,
+        ];
+
+  while (answers.length < questions.length) {
+    answers.push(`Mark scheme: acceptable equivalent answer for question ${answers.length + 1}.`);
+  }
+
   return LessonPackSchema.parse({
     ...pack,
-    learning_objectives:
-      pack.learning_objectives.filter((item) => item.trim().length > 0).length > 0
-        ? pack.learning_objectives
-        : defaultObjectives,
+    learning_objectives: completedObjectives,
+    teacher_explanation: normalizeUkSpelling(pack.teacher_explanation),
+    pupil_explanation: normalizeUkSpelling(pack.pupil_explanation),
+    worked_example: normalizeUkSpelling(pack.worked_example),
+    common_misconceptions: misconceptions,
     activities: {
-      support:
+      support: normalizeUkSpelling(
         pack.activities.support.trim().length > 0
           ? pack.activities.support
-          : `Guided task with sentence starters about ${req.topic}.`,
-      expected:
+          : `Guided task with sentence starters about ${req.topic}.`
+      ),
+      expected: normalizeUkSpelling(
         pack.activities.expected.trim().length > 0
           ? pack.activities.expected
-          : `Core class task applying the main concept in ${req.topic}.`,
+          : `Core class task applying the main concept in ${req.topic}.`
+      ),
       greater_depth:
         pack.activities.greater_depth.trim().length > 0
-          ? pack.activities.greater_depth
-          : `Challenge task comparing multiple examples related to ${req.topic}.`,
+          ? normalizeUkSpelling(
+              /two variables/i.test(pack.activities.greater_depth) && year && year <= 6
+                ? greaterDepthDefault
+                : pack.activities.greater_depth
+            )
+          : greaterDepthDefault,
     },
     mini_assessment: {
-      questions:
-        pack.mini_assessment.questions.filter((item) => item.trim().length > 0).length > 0
-          ? pack.mini_assessment.questions
-          : [
-              `What is one key fact about ${req.topic}?`,
-              `How would you explain ${req.topic} to a partner?`,
-              `Give one example linked to ${req.topic}.`,
-            ],
-      answers:
-        pack.mini_assessment.answers.filter((item) => item.trim().length > 0).length > 0
-          ? pack.mini_assessment.answers
-          : [
-              `A correct fact about ${req.topic}.`,
-              `A clear explanation using subject vocabulary.`,
-              `A relevant and accurate example.`,
-            ],
+      questions,
+      answers: answers.slice(0, questions.length).map((item) => normalizeUkSpelling(item)),
     },
+    plenary: normalizeUkSpelling(pack.plenary),
   });
 }
 
@@ -503,10 +553,24 @@ function attachProgrammaticSlides(pack: LessonPack): LessonPack {
   });
 }
 
-export async function generateLessonPack(req: LessonPackRequest): Promise<LessonPack> {
-  const cacheKey = `v3:${JSON.stringify(req)}`;
+export function getLessonPackCacheKey(req: LessonPackRequest) {
+  return `v3:${JSON.stringify(req)}`;
+}
+
+export async function generateLessonPackWithMeta(req: LessonPackRequest): Promise<{
+  pack: LessonPack;
+  providerId: string;
+  cacheHit: boolean;
+}> {
+  const cacheKey = getLessonPackCacheKey(req);
   const cached = cache.get<LessonPack>(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    return {
+      pack: cached,
+      providerId: "cache",
+      cacheHit: true,
+    };
+  }
 
   const objectives = await retrieveObjectives(req.year_group, req.subject, req.topic);
   if (objectives.length === 0) {
@@ -515,23 +579,55 @@ export async function generateLessonPack(req: LessonPackRequest): Promise<Lesson
     );
   }
 
-  const teacherProfile = await getTeacherProfile(req.teacher_id);
+  const teacherProfile = req.profile ?? null;
 
   const prompt = `
 You are PrimaryAI Engine. Return ONLY valid JSON matching this schema.
 Do not generate slide content; set slides to [] and it will be generated programmatically.
 Use ONLY primitive strings/arrays/objects exactly matching keys below.
 Do not return nested rich objects for text fields.
+Use UK spelling and UK primary classroom tone.
+Provide at least 3 learning objectives.
+For mini_assessment answers, write mark-scheme style expected answers.
+Never include real pupil names or personal data.
 
 Year Group: ${req.year_group}
 Subject: ${req.subject}
 Topic: ${req.topic}
 Curriculum Objectives: ${objectives.join("; ")}
-Teacher Profile Context: ${JSON.stringify(teacherProfile ?? {}, null, 2)}
+Teacher Profile:
+${JSON.stringify(
+    {
+      defaultYearGroup: teacherProfile?.defaultYearGroup ?? null,
+      defaultSubject: teacherProfile?.defaultSubject ?? null,
+      tone: teacherProfile?.tone ?? "professional_uk",
+      schoolType: teacherProfile?.schoolType ?? "primary",
+      sendFocus: teacherProfile?.sendFocus ?? false,
+      styleRules: [
+        "Profile influences tone, examples, and scaffolding style.",
+        "Profile must not override factual curriculum claims.",
+      ],
+    },
+    null,
+    2
+  )}
+
+Profile-Driven Instructions:
+- Apply profile tone and school type to explanations and examples.
+- If sendFocus is true, include robust SEND adaptations in send_adaptations and differentiated activities.
+- Do not invent curriculum facts beyond provided objectives.
 
 Generate structured lesson pack with:
 ${JSON.stringify(LESSON_PACK_OUTPUT_TEMPLATE, null, 2)}
   `;
+
+  if (process.env.NODE_ENV === "development") {
+    console.debug("lesson-pack-profile-context", {
+      year_group: req.year_group,
+      subject: req.subject,
+      profile: teacherProfile ?? null,
+    });
+  }
 
   const generated = await generateBestLessonPack(prompt, objectives);
   const reviewed = await runQualityPass(generated.lessonPack, req, objectives);
@@ -541,5 +637,14 @@ ${JSON.stringify(LESSON_PACK_OUTPUT_TEMPLATE, null, 2)}
 
   cache.set(cacheKey, finalized);
   record(generated.providerId, req);
-  return finalized;
+  return {
+    pack: finalized,
+    providerId: generated.providerId,
+    cacheHit: false,
+  };
+}
+
+export async function generateLessonPack(req: LessonPackRequest): Promise<LessonPack> {
+  const generated = await generateLessonPackWithMeta(req);
+  return generated.pack;
 }

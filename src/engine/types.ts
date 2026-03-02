@@ -9,6 +9,13 @@ export interface LessonPackRequest {
   subject: string;
   topic: string;
   teacher_id?: string;
+  profile?: {
+    defaultYearGroup?: string | null;
+    defaultSubject?: string | null;
+    tone?: string | null;
+    schoolType?: string | null;
+    sendFocus?: boolean | null;
+  };
 }
 
 export type LessonPackReview = {
@@ -18,7 +25,12 @@ export type LessonPackReview = {
 
 export type TeacherProfile = {
   id: string;
-  preferred_year_group?: string | null;
+  userId?: string;
+  defaultYearGroup?: string | null;
+  defaultSubject?: string | null;
   tone?: string | null;
-  school_type?: string | null;
+  schoolType?: string | null;
+  sendFocus?: boolean;
+  autoSave?: boolean;
+  formatPrefs?: string | null;
 };

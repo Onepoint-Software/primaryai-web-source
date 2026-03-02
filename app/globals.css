@@ -1651,3 +1651,7 @@ html[data-theme="light"] .bg-shape--3 { opacity: 0.05; }
 @media (prefers-reduced-motion: reduce) {
   .bg-shape { animation: none; }
 }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
