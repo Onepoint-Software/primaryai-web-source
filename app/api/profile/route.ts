@@ -33,6 +33,9 @@ export async function POST(req: Request) {
       sendFocus: typeof body?.sendFocus === "boolean" ? body.sendFocus : undefined,
       autoSave: typeof body?.autoSave === "boolean" ? body.autoSave : undefined,
       formatPrefs: typeof body?.formatPrefs === "string" ? body.formatPrefs : undefined,
+      classNotes: typeof body?.classNotes === "string" ? body.classNotes : (body?.classNotes === null ? null : undefined),
+      teachingApproach: typeof body?.teachingApproach === "string" ? body.teachingApproach : undefined,
+      abilityMix: typeof body?.abilityMix === "string" ? body.abilityMix : undefined,
     });
 
     return NextResponse.json({ ok: true, profile });

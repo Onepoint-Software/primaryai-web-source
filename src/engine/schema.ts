@@ -36,6 +36,7 @@ export const LessonPackRequestSchema = z
     subject: z.string().min(1),
     topic: z.string().min(1),
     teacher_id: z.string().optional(),
+    feedback: z.string().optional(),
     profile: z
       .object({
         defaultYearGroup: z.string().optional().nullable(),
@@ -43,6 +44,9 @@ export const LessonPackRequestSchema = z
         tone: z.string().optional().nullable(),
         schoolType: z.string().optional().nullable(),
         sendFocus: z.boolean().optional().nullable(),
+        classNotes: z.string().optional().nullable(),
+        teachingApproach: z.string().optional().nullable(),
+        abilityMix: z.string().optional().nullable(),
       })
       .optional(),
   })

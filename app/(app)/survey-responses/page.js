@@ -37,6 +37,49 @@ function RoleChip({ role }) {
   return <span className="surveyx-role-chip">{role}</span>;
 }
 
+function toLabel(key) {
+  return String(key || "")
+    .replace(/^[a-d]_/i, "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function isPlainObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value);
+}
+
+function renderValue(value) {
+  if (value == null || value === "") return <span className="muted">No response</span>;
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <span className="muted">No response</span>;
+    return (
+      <ul className="surveyx-answer-list">
+        {value.map((item, index) => (
+          <li key={`${index}-${String(item)}`}>{isPlainObject(item) ? renderValue(item) : String(item)}</li>
+        ))}
+      </ul>
+    );
+  }
+
+  if (isPlainObject(value)) {
+    const entries = Object.entries(value);
+    if (entries.length === 0) return <span className="muted">No response</span>;
+    return (
+      <div className="surveyx-answer-group">
+        {entries.map(([nestedKey, nestedValue]) => (
+          <div key={nestedKey} className="surveyx-answer-row">
+            <p className="surveyx-answer-label">{toLabel(nestedKey)}</p>
+            <div className="surveyx-answer-value">{renderValue(nestedValue)}</div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return <span>{String(value)}</span>;
+}
+
 function SectionBlock({ title, data }) {
   const hasData = data && typeof data === "object" && Object.keys(data).length > 0;
   if (!hasData) return null;
@@ -44,15 +87,36 @@ function SectionBlock({ title, data }) {
   return (
     <details className="surveyx-response-section">
       <summary>{title}</summary>
-      <pre>{JSON.stringify(data, null, 2)}</pre>
+      <div className="surveyx-answer-group">
+        {Object.entries(data).map(([key, value]) => (
+          <div key={key} className="surveyx-answer-row">
+            <p className="surveyx-answer-label">{toLabel(key)}</p>
+            <div className="surveyx-answer-value">{renderValue(value)}</div>
+          </div>
+        ))}
+      </div>
     </details>
   );
 }
 
 export default async function SurveyResponsesPage() {
   const session = await getAuthSession();
-  if (!isLeaderSession(session)) {
+  if (!session?.userId) {
     redirect("/login?next=/survey-responses");
+  }
+
+  if (!isLeaderSession(session)) {
+    return (
+      <main className="page-wrap survey-shell">
+        <section className="surveyx-card card">
+          <h1 className="survey-title">Survey Responses</h1>
+          <p className="muted">
+            You are signed in as <strong>{session.email || "an authenticated user"}</strong>, but this account is not authorised to view responses.
+          </p>
+          <p className="muted">Use an approved admin email or ask an admin to add your address to SURVEY_ADMIN_EMAILS.</p>
+        </section>
+      </main>
+    );
   }
 
   const db = getSupabaseAdminClient();

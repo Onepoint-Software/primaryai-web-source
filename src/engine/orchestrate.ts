@@ -518,7 +518,7 @@ async function runAlignmentPass(
 
   const alignmentPrompt = `
 Improve this lesson pack so it explicitly aligns to these UK curriculum objectives.
-Prioritize revising:
+Prioritise revising:
 - learning_objectives
 - teacher_explanation
 - pupil_explanation
@@ -571,7 +571,7 @@ export async function generateLessonPackWithMeta(req: LessonPackRequest): Promis
   cacheHit: boolean;
 }> {
   const cacheKey = getLessonPackCacheKey(req);
-  const cached = cache.get<LessonPack>(cacheKey);
+  const cached = !req.feedback && cache.get<LessonPack>(cacheKey);
   if (cached) {
     return {
       pack: cached,
@@ -607,6 +607,15 @@ Curriculum Objectives: ${objectives.join("; ")}
 School Type: ${teacherProfile?.schoolType ?? "primary"}
 Teacher Tone Preference: ${teacherProfile?.tone ?? "professional_uk"}
 SEND Focus: ${teacherProfile?.sendFocus ?? false}
+Teaching Approach: ${(teacherProfile?.teachingApproach ?? "cpa") === "cpa" ? "Concrete-Pictorial-Abstract (CPA) — use physical/visual representations before abstract notation, reference manipulatives and diagrams in activities and worked examples" : (teacherProfile?.teachingApproach ?? "cpa") === "direct_instruction" ? "Direct Instruction — teacher-led explanation followed by guided and independent practice; steps are clearly modelled before pupils attempt independently" : (teacherProfile?.teachingApproach ?? "cpa") === "problem_solving" ? "Problem-Solving Led — begin with a rich problem or challenge that motivates the concept; pupils discover or construct understanding through reasoning" : "Inquiry-Based — pupils investigate, question and explore; activities should be open-ended with pupils generating their own examples and generalisations"}
+Ability Mix: ${(teacherProfile?.abilityMix ?? "mixed") === "mixed" ? "Mixed ability — differentiated activities must span a wide range; support, expected and greater depth tasks should be clearly distinct" : (teacherProfile?.abilityMix ?? "mixed") === "predominantly_lower" ? "Predominantly lower ability — pitch baseline expectations lower, include more scaffolding and smaller steps; greater depth task is still required but may be more guided" : "Predominantly higher ability — raise the baseline; expected task should be challenging for most pupils, greater depth should stretch the most able significantly"}${teacherProfile?.classNotes ? `
+About this class: ${teacherProfile.classNotes}` : ""}${req.feedback ? `
+
+━━━ TEACHER FEEDBACK ━━━
+The teacher has reviewed a previous version of this lesson pack and requested these specific changes:
+${req.feedback}
+
+Apply these changes carefully. All other sections not mentioned in the feedback should still be high quality and complete.` : ""}
 
 ━━━ CONTENT STANDARDS ━━━
 
@@ -697,7 +706,9 @@ ${JSON.stringify(LESSON_PACK_OUTPUT_TEMPLATE, null, 2)}
   const useful = ensureUsefulContent(aligned, req, objectives);
   const finalized = attachProgrammaticSlides(useful);
 
-  cache.set(cacheKey, finalized);
+  if (!req.feedback) {
+    cache.set(cacheKey, finalized);
+  }
   record(generated.providerId, req);
   return {
     pack: finalized,

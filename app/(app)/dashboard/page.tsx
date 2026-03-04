@@ -366,7 +366,7 @@ export default function DashboardPage() {
                     background: "var(--surface)",
                     transition: "border-color 150ms ease, transform 120ms ease",
                   }}>
-                    {/* Color dot */}
+                    {/* Colour dot */}
                     <div style={{
                       width: "38px",
                       height: "38px",

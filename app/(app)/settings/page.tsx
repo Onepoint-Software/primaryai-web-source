@@ -9,6 +9,9 @@ type Profile = {
   schoolType: string;
   sendFocus: boolean;
   autoSave: boolean;
+  classNotes: string;
+  teachingApproach: string;
+  abilityMix: string;
 };
 
 const INITIAL_PROFILE: Profile = {
@@ -18,6 +21,9 @@ const INITIAL_PROFILE: Profile = {
   schoolType: "primary",
   sendFocus: false,
   autoSave: false,
+  classNotes: "",
+  teachingApproach: "cpa",
+  abilityMix: "mixed",
 };
 
 const YEAR_GROUPS = ["Reception", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"];
@@ -41,6 +47,19 @@ const SCHOOL_TYPE_OPTIONS = [
   { value: "infant", label: "Infant" },
   { value: "junior", label: "Junior" },
   { value: "SEND", label: "SEND School" },
+];
+
+const TEACHING_APPROACH_OPTIONS = [
+  { value: "cpa", label: "Concrete-Pictorial-Abstract", desc: "Physical resources and diagrams before abstract notation — recommended for Maths" },
+  { value: "direct_instruction", label: "Direct Instruction", desc: "Teacher models each step clearly before pupils practise independently" },
+  { value: "problem_solving", label: "Problem-Solving Led", desc: "Start with a rich problem; pupils reason their way to the concept" },
+  { value: "inquiry", label: "Inquiry-Based", desc: "Pupils investigate, question and build their own generalisations" },
+];
+
+const ABILITY_MIX_OPTIONS = [
+  { value: "mixed", label: "Mixed ability", desc: "Wide range of attainment — clear scaffolding and stretch across all tasks" },
+  { value: "predominantly_lower", label: "Predominantly lower ability", desc: "More scaffolding, smaller steps, accessible language throughout" },
+  { value: "predominantly_higher", label: "Predominantly higher ability", desc: "Raised baseline; greater depth task pushes the most able significantly" },
 ];
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
@@ -139,6 +158,9 @@ export default function SettingsPage() {
           schoolType: data.profile.schoolType ?? INITIAL_PROFILE.schoolType,
           sendFocus: Boolean(data.profile.sendFocus),
           autoSave: Boolean(data.profile.autoSave),
+          classNotes: data.profile.classNotes ?? INITIAL_PROFILE.classNotes,
+          teachingApproach: data.profile.teachingApproach ?? INITIAL_PROFILE.teachingApproach,
+          abilityMix: data.profile.abilityMix ?? INITIAL_PROFILE.abilityMix,
         });
       }
     })();
@@ -310,6 +332,132 @@ export default function SettingsPage() {
               );
             })}
           </div>
+        </div>
+
+        {/* ── Teaching Approach ── */}
+        <div className="card">
+          <SectionLabel>Teaching Approach</SectionLabel>
+          <p style={{ margin: "0 0 1rem", fontSize: "0.82rem", color: "var(--muted)" }}>
+            Shapes how activities and worked examples are structured and presented.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem" }}>
+            {TEACHING_APPROACH_OPTIONS.map((opt) => {
+              const active = profile.teachingApproach === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setProfile({ ...profile, teachingApproach: opt.value })}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.9rem",
+                    padding: "0.75rem 1rem",
+                    borderRadius: "12px",
+                    border: active ? "1.5px solid var(--accent)" : "1.5px solid var(--border)",
+                    background: active ? "rgb(var(--accent-rgb) / 0.07)" : "var(--field-bg)",
+                    cursor: "pointer",
+                    textAlign: "left" as const,
+                    fontFamily: "inherit",
+                    transition: "border-color 160ms ease, background 160ms ease",
+                  }}
+                >
+                  <span style={{
+                    width: "18px",
+                    height: "18px",
+                    borderRadius: "50%",
+                    border: active ? "5px solid var(--accent)" : "2px solid var(--border)",
+                    flexShrink: 0,
+                    transition: "border 160ms ease",
+                    background: "transparent",
+                  }} />
+                  <div style={{ flex: 1 }}>
+                    <p style={{ margin: 0, fontSize: "0.88rem", fontWeight: 600, color: active ? "var(--accent)" : "var(--text)" }}>
+                      {opt.label}
+                    </p>
+                    <p style={{ margin: "0.1rem 0 0", fontSize: "0.78rem", color: "var(--muted)" }}>{opt.desc}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Ability Mix ── */}
+        <div className="card">
+          <SectionLabel>Class Ability Mix</SectionLabel>
+          <p style={{ margin: "0 0 1rem", fontSize: "0.82rem", color: "var(--muted)" }}>
+            Adjusts how differentiation is pitched across support, expected and greater depth tasks.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem" }}>
+            {ABILITY_MIX_OPTIONS.map((opt) => {
+              const active = profile.abilityMix === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setProfile({ ...profile, abilityMix: opt.value })}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.9rem",
+                    padding: "0.75rem 1rem",
+                    borderRadius: "12px",
+                    border: active ? "1.5px solid var(--accent)" : "1.5px solid var(--border)",
+                    background: active ? "rgb(var(--accent-rgb) / 0.07)" : "var(--field-bg)",
+                    cursor: "pointer",
+                    textAlign: "left" as const,
+                    fontFamily: "inherit",
+                    transition: "border-color 160ms ease, background 160ms ease",
+                  }}
+                >
+                  <span style={{
+                    width: "18px",
+                    height: "18px",
+                    borderRadius: "50%",
+                    border: active ? "5px solid var(--accent)" : "2px solid var(--border)",
+                    flexShrink: 0,
+                    transition: "border 160ms ease",
+                    background: "transparent",
+                  }} />
+                  <div style={{ flex: 1 }}>
+                    <p style={{ margin: 0, fontSize: "0.88rem", fontWeight: 600, color: active ? "var(--accent)" : "var(--text)" }}>
+                      {opt.label}
+                    </p>
+                    <p style={{ margin: "0.1rem 0 0", fontSize: "0.78rem", color: "var(--muted)" }}>{opt.desc}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── About My Class ── */}
+        <div className="card">
+          <SectionLabel>About My Class</SectionLabel>
+          <p style={{ margin: "0 0 0.9rem", fontSize: "0.82rem", color: "var(--muted)" }}>
+            Tell the AI anything specific about your class — scheme of work, EAL learners, TA support, grouping, or anything else that should shape the content.
+          </p>
+          <textarea
+            value={profile.classNotes}
+            onChange={(e) => setProfile({ ...profile, classNotes: e.target.value })}
+            placeholder="e.g. We follow White Rose Maths. 6 EAL learners at early fluency. A TA supports a lower group of 8. Many pupils find word problems difficult."
+            rows={4}
+            style={{
+              width: "100%",
+              boxSizing: "border-box" as const,
+              resize: "vertical" as const,
+              border: "1px solid var(--border)",
+              background: "var(--field-bg)",
+              color: "var(--text)",
+              borderRadius: "10px",
+              padding: "0.65rem 0.75rem",
+              fontSize: "0.87rem",
+              fontFamily: "inherit",
+              lineHeight: 1.6,
+              outline: "none",
+            }}
+          />
         </div>
 
         {/* ── Preferences ── */}

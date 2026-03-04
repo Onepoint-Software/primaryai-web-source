@@ -192,6 +192,8 @@ export default function LessonPackPage() {
   const [loading, setLoading] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveMsg, setSaveMsg] = useState("");
+  const [feedback, setFeedback] = useState("");
+  const [regenLoading, setRegenLoading] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -252,6 +254,25 @@ export default function LessonPackPage() {
     } else {
       setSaveState("error");
       setSaveMsg(res.status === 401 ? "Sign in to save to your library" : (data?.error ?? "Save failed"));
+    }
+  }
+
+  async function handleRegenerate() {
+    if (!feedback.trim() || regenLoading) return;
+    setRegenLoading(true);
+    setExportResult(null);
+    setSaveState("idle");
+    setSaveMsg("");
+    try {
+      const res = await fetch("/api/lesson-pack", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, feedback: feedback.trim() }),
+      });
+      setResult(await res.json());
+      setFeedback("");
+    } finally {
+      setRegenLoading(false);
     }
   }
 
@@ -703,6 +724,66 @@ export default function LessonPackPage() {
               }}>{JSON.stringify(exportResult, null, 2)}</pre>
             </div>
           )}
+
+          {/* Feedback & regenerate */}
+          <div className="card" style={{ marginTop: "1.5rem" }}>
+            <SectionLabel color="var(--muted)">Request Changes</SectionLabel>
+            <p style={{ margin: "0 0 0.75rem", fontSize: "0.85rem", color: "var(--muted)", lineHeight: 1.5 }}>
+              Describe what you&apos;d like to change — for example: &quot;Make the worked example simpler&quot; or &quot;Add more SEND adaptations for dyslexia&quot;.
+            </p>
+            <textarea
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder="e.g. The activities are too similar — make the greater depth task more open-ended…"
+              rows={3}
+              style={{
+                width: "100%",
+                boxSizing: "border-box" as const,
+                resize: "vertical" as const,
+                border: "1px solid var(--border)",
+                background: "var(--field-bg)",
+                color: "var(--text)",
+                borderRadius: "10px",
+                padding: "0.65rem 0.75rem",
+                fontSize: "0.88rem",
+                fontFamily: "inherit",
+                lineHeight: 1.6,
+                outline: "none",
+                marginBottom: "0.75rem",
+              }}
+            />
+            <button
+              type="button"
+              onClick={handleRegenerate}
+              disabled={!feedback.trim() || regenLoading}
+              className="nav-btn-cta"
+              style={{
+                padding: "0.65rem 1.25rem",
+                fontSize: "0.88rem",
+                borderRadius: "10px",
+                opacity: (!feedback.trim() || regenLoading) ? 0.6 : 1,
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+              }}
+            >
+              {regenLoading ? (
+                <>
+                  <span style={{
+                    width: "12px",
+                    height: "12px",
+                    border: "2px solid currentColor",
+                    borderTopColor: "transparent",
+                    borderRadius: "50%",
+                    display: "inline-block",
+                    animation: "spin 0.65s linear infinite",
+                    flexShrink: 0,
+                  }} />
+                  Regenerating…
+                </>
+              ) : "Regenerate with feedback"}
+            </button>
+          </div>
 
         </div>
       )}{/* /pack */}

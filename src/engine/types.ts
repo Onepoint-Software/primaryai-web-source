@@ -9,12 +9,16 @@ export interface LessonPackRequest {
   subject: string;
   topic: string;
   teacher_id?: string;
+  feedback?: string;
   profile?: {
     defaultYearGroup?: string | null;
     defaultSubject?: string | null;
     tone?: string | null;
     schoolType?: string | null;
     sendFocus?: boolean | null;
+    classNotes?: string | null;
+    teachingApproach?: string | null;
+    abilityMix?: string | null;
   };
 }
 
@@ -33,4 +37,7 @@ export type TeacherProfile = {
   sendFocus?: boolean;
   autoSave?: boolean;
   formatPrefs?: string | null;
+  classNotes?: string | null;
+  teachingApproach?: string | null;
+  abilityMix?: string | null;
 };

@@ -68,6 +68,9 @@ model TeacherProfile {
   sendFocus        Boolean  @default(false) @map("send_focus")
   autoSave         Boolean  @default(false) @map("auto_save")
   formatPrefs      String?  @map("format_prefs") // JSON string
+  classNotes       String?  @map("class_notes") // free-text class context
+  teachingApproach String?  @map("teaching_approach") // cpa | direct_instruction | problem_solving | inquiry
+  abilityMix       String?  @map("ability_mix") // mixed | predominantly_lower | predominantly_higher
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
