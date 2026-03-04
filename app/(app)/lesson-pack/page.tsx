@@ -282,7 +282,7 @@ export default function LessonPackPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <main className="page-wrap" style={{ maxWidth: 900 }}>
+    <main className="page-wrap">
 
       {/* Page header */}
       <div style={{ marginBottom: "1.75rem" }}>

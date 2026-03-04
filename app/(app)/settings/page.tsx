@@ -190,7 +190,7 @@ export default function SettingsPage() {
   const isSaving = status === "saving";
 
   return (
-    <main className="page-wrap" style={{ maxWidth: 680 }}>
+    <main className="page-wrap">
 
       {/* Page header */}
       <div style={{ marginBottom: "2rem" }}>

@@ -2,6 +2,8 @@
 
 import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
+import { subjectColor } from "@/lib/subjectColor";
+import SchedulerDrawer from "@/components/dashboard/SchedulerDrawer";
 
 type LibraryItem = {
   id: string;
@@ -30,26 +32,6 @@ function relativeTime(iso: string) {
   if (days === 1) return "yesterday";
   if (days < 7) return `${days} days ago`;
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-}
-
-const SUBJECT_COLOURS: Record<string, string> = {
-  Maths: "var(--accent)",
-  English: "#60a5fa",
-  Science: "#4ade80",
-  History: "#f59e0b",
-  Geography: "#34d399",
-  Computing: "#a78bfa",
-  Music: "#f472b6",
-  Art: "#fb923c",
-  PE: "#22d3ee",
-  PSHE: "#e879f9",
-  RE: "#facc15",
-};
-function subjectColor(s: string) {
-  for (const [k, v] of Object.entries(SUBJECT_COLOURS)) {
-    if (s.startsWith(k)) return v;
-  }
-  return "var(--muted)";
 }
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
@@ -152,6 +134,7 @@ export default function DashboardPage() {
   const [email, setEmail] = useState("");
   const [plan, setPlan] = useState("Starter");
   const [loading, setLoading] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -184,7 +167,7 @@ export default function DashboardPage() {
   const firstName = email.split("@")[0] ?? "";
 
   return (
-    <main className="page-wrap" style={{ maxWidth: 960 }}>
+    <main className="page-wrap">
 
       {/* ── Header ── */}
       <div style={{
@@ -228,6 +211,31 @@ export default function DashboardPage() {
           }} />
           {plan} plan active
         </div>
+
+        <button
+          onClick={() => setDrawerOpen(true)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.45rem",
+            padding: "0.45rem 1rem",
+            borderRadius: "999px",
+            border: "1px solid var(--border-card)",
+            background: "var(--surface)",
+            fontSize: "0.78rem",
+            color: "var(--muted)",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            transition: "color 150ms ease, border-color 150ms ease",
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgb(var(--accent-rgb) / 0.35)"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--muted)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border-card)"; }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18"/>
+          </svg>
+          Schedule
+        </button>
       </div>
 
       {/* ── Stats ── */}
@@ -419,6 +427,8 @@ export default function DashboardPage() {
         </div>
 
       </div>{/* /grid */}
+
+      <SchedulerDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
     </main>
   );
