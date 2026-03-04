@@ -31,6 +31,8 @@ export async function GET(request) {
   const requestUrl = new URL(request.url);
   const base = APP_URL ? new URL(APP_URL).origin : requestUrl.origin;
   const isHttps = new URL(base).protocol === "https:";
+  const nextFromCookie = request.cookies.get("oauth_next")?.value;
+  const postLoginPath = nextFromCookie?.startsWith("/") ? nextFromCookie : "/dashboard";
 
   if (errorParam) {
     return NextResponse.redirect(
@@ -44,6 +46,7 @@ export async function GET(request) {
       new URL(`/login?error=${encodeURIComponent("Your sign-in session expired — please try again")}`, base),
     );
     response.cookies.delete("oauth_state");
+    response.cookies.delete("oauth_next");
     return response;
   }
 
@@ -97,9 +100,10 @@ export async function GET(request) {
     );
   }
 
-  const response = NextResponse.redirect(new URL("/dashboard", base));
+  const response = NextResponse.redirect(new URL(postLoginPath, base));
   setSessionCookie(response, data.user, isHttps);
   response.cookies.delete("oauth_state");
+  response.cookies.delete("oauth_next");
   response.headers.set("Cache-Control", "no-store");
   return response;
 }

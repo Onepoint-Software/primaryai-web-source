@@ -64,7 +64,7 @@ function rankingIsValid(ranking) {
   return values.length === TIME_SPENT_ITEMS.length && new Set(values).size === TIME_SPENT_ITEMS.length;
 }
 
-export default function PartB({ answers, onChange, onNext, onBack, saving, isFinal }) {
+export default function PartB({ answers, onChange, onNext, onBack, saving, isFinal, onValidationError }) {
   const [errors, setErrors] = useState({});
 
   function validate() {
@@ -105,7 +105,10 @@ export default function PartB({ answers, onChange, onNext, onBack, saving, isFin
   }
 
   function handleNext() {
-    if (!validate()) return;
+    if (!validate()) {
+      onValidationError?.("Please complete the highlighted required fields before continuing.");
+      return;
+    }
     onNext();
   }
 

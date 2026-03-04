@@ -10,15 +10,9 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
 
 export async function GET(request) {
   const requestUrl = new URL(request.url);
-  const configuredBase = APP_URL ? new URL(APP_URL).origin : null;
-  const base = configuredBase || requestUrl.origin;
+  const base = APP_URL ? new URL(APP_URL).origin : requestUrl.origin;
   const isHttps = new URL(base).protocol === "https:";
-
-  // Force OAuth initiation on one canonical host so redirect_uri always matches
-  // what is configured in Google Cloud Console.
-  if (configuredBase && requestUrl.origin !== configuredBase) {
-    return NextResponse.redirect(new URL("/api/auth/google", configuredBase));
-  }
+  const next = requestUrl.searchParams.get("next");
 
   if (!GOOGLE_CLIENT_ID) {
     return NextResponse.redirect(new URL("/login?error=Google+not+configured", base));
@@ -49,6 +43,18 @@ export async function GET(request) {
     path: "/",
     maxAge: 60 * 10,
   });
+
+  if (next?.startsWith("/")) {
+    response.cookies.set("oauth_next", next, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: isHttps,
+      path: "/",
+      maxAge: 60 * 10,
+    });
+  } else {
+    response.cookies.delete("oauth_next");
+  }
 
   // Prevent any CDN / proxy from caching this redirect.
   response.headers.set("Cache-Control", "no-store");

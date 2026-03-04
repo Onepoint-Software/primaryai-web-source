@@ -40,6 +40,7 @@ export default async function LoginPage({ searchParams }) {
   const resolvedSearchParams = await searchParams;
   const message = getMessage(resolvedSearchParams || {});
   const next = resolvedSearchParams?.next ? String(resolvedSearchParams.next) : "/dashboard";
+  const googleAuthHref = `/api/auth/google?next=${encodeURIComponent(next)}`;
 
   return (
     <main className="auth-layout">
@@ -144,7 +145,7 @@ export default async function LoginPage({ searchParams }) {
             </div>
           )}
 
-          <a className="auth-google" href="/api/auth/google">
+          <a className="auth-google" href={googleAuthHref}>
             <GoogleIcon />
             Continue with Google
           </a>

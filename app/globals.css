@@ -2096,6 +2096,22 @@ html[data-theme="light"] .surveyx-error-banner {
   color: #7f1d1d;
 }
 
+.surveyx-toast {
+  position: sticky;
+  top: 1rem;
+  z-index: 20;
+  margin: 0 auto 0.9rem;
+  width: min(720px, 100%);
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border-card));
+  background: color-mix(in srgb, var(--surface) 88%, var(--accent));
+  color: var(--text);
+  border-radius: 12px;
+  padding: 0.72rem 0.9rem;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 0.2);
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+
 .surveyx-question-block {
   border: 1px solid color-mix(in srgb, var(--border-card) 84%, transparent);
   border-radius: 14px;

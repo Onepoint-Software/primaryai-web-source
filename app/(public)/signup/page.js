@@ -22,6 +22,8 @@ const CheckIcon = () => (
 
 export default function SignupPage({ searchParams }) {
   const message = getMessage(searchParams || {});
+  const next = searchParams?.next ? String(searchParams.next) : "/dashboard";
+  const googleAuthHref = `/api/auth/google?next=${encodeURIComponent(next)}`;
 
   return (
     <main className="auth-layout">
@@ -126,7 +128,7 @@ export default function SignupPage({ searchParams }) {
             </div>
           )}
 
-          <a className="auth-google" href="/api/auth/google">
+          <a className="auth-google" href={googleAuthHref}>
             <GoogleIcon />
             Continue with Google
           </a>

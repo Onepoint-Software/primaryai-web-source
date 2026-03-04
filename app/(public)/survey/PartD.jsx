@@ -40,7 +40,7 @@ function isBlank(value) {
   return String(value || "").trim().length === 0;
 }
 
-export default function PartD({ answers, onChange, onNext, onBack, saving, isFinal }) {
+export default function PartD({ answers, onChange, onNext, onBack, saving, isFinal, onValidationError }) {
   const [errors, setErrors] = useState({});
 
   function validate() {
@@ -70,7 +70,10 @@ export default function PartD({ answers, onChange, onNext, onBack, saving, isFin
   }
 
   function handleNext() {
-    if (!validate()) return;
+    if (!validate()) {
+      onValidationError?.("Please complete the highlighted required fields before continuing.");
+      return;
+    }
     onNext();
   }
 

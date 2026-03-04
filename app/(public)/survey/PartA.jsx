@@ -86,7 +86,7 @@ function isBlank(value) {
   return String(value || "").trim().length === 0;
 }
 
-export default function PartA({ answers, onChange, onNext, onBack, saving }) {
+export default function PartA({ answers, onChange, onNext, onBack, saving, onValidationError }) {
   const [errors, setErrors] = useState({});
 
   function validate() {
@@ -128,7 +128,10 @@ export default function PartA({ answers, onChange, onNext, onBack, saving }) {
   }
 
   function handleNext() {
-    if (!validate()) return;
+    if (!validate()) {
+      onValidationError?.("Please complete the highlighted required fields before continuing.");
+      return;
+    }
     onNext();
   }
 

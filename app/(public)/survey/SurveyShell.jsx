@@ -50,6 +50,7 @@ export default function SurveyShell() {
   const [answers, setAnswers] = useState(INITIAL_ANSWERS);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [toast, setToast] = useState(null);
   const [hydrated, setHydrated] = useState(false);
 
   const partsForRole = useMemo(() => PARTS_FOR_ROLE[role] || [], [role]);
@@ -111,6 +112,15 @@ export default function SurveyShell() {
         [key]: value,
       },
     }));
+  }
+
+  function showValidationToast(message) {
+    if (!message) return;
+    const id = Date.now();
+    setToast({ id, message });
+    window.setTimeout(() => {
+      setToast((current) => (current?.id === id ? null : current));
+    }, 3600);
   }
 
   function goBack() {
@@ -212,6 +222,11 @@ export default function SurveyShell() {
       ) : null}
 
       {error ? <div className="surveyx-error-banner">{error}</div> : null}
+      {toast ? (
+        <div className="surveyx-toast" role="status" aria-live="assertive">
+          {toast.message}
+        </div>
+      ) : null}
 
       {step === "role" ? (
         <RoleSelector role={role} onSelect={setRole} onContinue={handleRoleContinue} />
@@ -223,6 +238,7 @@ export default function SurveyShell() {
           onChange={(key, value) => handleChange("partA", key, value)}
           onBack={goBack}
           onNext={() => saveAndNext("partA")}
+          onValidationError={showValidationToast}
           saving={saving}
         />
       ) : null}
@@ -233,6 +249,7 @@ export default function SurveyShell() {
           onChange={(key, value) => handleChange("partB", key, value)}
           onBack={goBack}
           onNext={() => saveAndNext("partB")}
+          onValidationError={showValidationToast}
           saving={saving}
           isFinal={currentPartIndex === partsForRole.length - 1}
         />
@@ -244,6 +261,7 @@ export default function SurveyShell() {
           onChange={(key, value) => handleChange("partC", key, value)}
           onBack={goBack}
           onNext={() => saveAndNext("partC")}
+          onValidationError={showValidationToast}
           saving={saving}
           isFinal={currentPartIndex === partsForRole.length - 1}
         />
@@ -255,6 +273,7 @@ export default function SurveyShell() {
           onChange={(key, value) => handleChange("partD", key, value)}
           onBack={goBack}
           onNext={() => saveAndNext("partD")}
+          onValidationError={showValidationToast}
           saving={saving}
           isFinal={currentPartIndex === partsForRole.length - 1}
         />
