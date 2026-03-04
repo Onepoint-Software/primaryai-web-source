@@ -8,7 +8,7 @@ export class GroqProvider implements EngineProvider {
   }
 
   async generate(prompt: string) {
-    const model = process.env.GROQ_MODEL ?? "llama-3.1-8b-instant";
+    const model = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -17,7 +17,7 @@ export class GroqProvider implements EngineProvider {
       },
       body: JSON.stringify({
         model,
-        temperature: 0.2,
+        temperature: 0.45,
         response_format: { type: "json_object" },
         messages: [{ role: "user", content: prompt }],
       }),

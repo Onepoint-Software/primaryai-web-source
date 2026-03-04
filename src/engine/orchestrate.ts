@@ -30,8 +30,8 @@ const LESSON_PACK_OUTPUT_TEMPLATE = {
   send_adaptations: ["string", "string", "string"],
   plenary: "string",
   mini_assessment: {
-    questions: ["string", "string", "string"],
-    answers: ["string", "string", "string"],
+    questions: ["string", "string", "string", "string"],
+    answers: ["string", "string", "string", "string"],
   },
   slides: [],
 };
@@ -431,13 +431,21 @@ async function runQualityPass(
   objectives: string[]
 ): Promise<LessonPack> {
   const reviewPrompt = `
-You are reviewing a lesson pack for quality.
-Check:
-- Clear differentiation
-- Curriculum alignment
-- Logical flow
-Return JSON:
-{ "approved": true/false, "improvements": [] }
+You are a senior UK primary curriculum advisor reviewing a lesson pack for classroom quality.
+Return ONLY valid JSON: { "approved": boolean, "improvements": string[] }
+
+Mark "approved": false and list specific improvements if ANY of these issues exist:
+1. learning_objectives do not start with a Bloom's Taxonomy verb or are vague/generic
+2. teacher_explanation is fewer than 3 sentences or lacks subject-specific vocabulary
+3. pupil_explanation uses language too abstract or complex for ${req.year_group}
+4. worked_example skips steps or does not show full working
+5. Any common_misconception is generic and not specific to this topic
+6. Any activity (support/expected/greater_depth) is fewer than 2 sentences or lacks differentiation
+7. greater_depth activity is just "more of the same" rather than a reasoning/justification challenge
+8. send_adaptations are generic rather than naming specific strategies or resources
+9. plenary does not describe a specific, named consolidation activity
+10. mini_assessment does not include 4 questions at ascending challenge levels
+11. Any field contains placeholder text, template text, or is shorter than expected
 
 Year Group: ${req.year_group}
 Subject: ${req.subject}
@@ -581,43 +589,101 @@ export async function generateLessonPackWithMeta(req: LessonPackRequest): Promis
 
   const teacherProfile = req.profile ?? null;
 
+  const bloomsVerbs =
+    req.year_group === "Reception" || req.year_group === "Year 1" || req.year_group === "Year 2"
+      ? "Know, Identify, Name, Count, Match, Sequence, Retell, Recognise, Describe"
+      : req.year_group === "Year 3" || req.year_group === "Year 4"
+        ? "Describe, Explain, Compare, Apply, Organise, Classify, Summarise, Demonstrate"
+        : "Analyse, Justify, Evaluate, Synthesise, Argue, Deduce, Investigate, Critique";
+
   const prompt = `
-You are PrimaryAI Engine. Return ONLY valid JSON matching this schema.
-Do not generate slide content; set slides to [] and it will be generated programmatically.
-Use ONLY primitive strings/arrays/objects exactly matching keys below.
-Do not return nested rich objects for text fields.
-Use UK spelling and UK primary classroom tone.
-Provide at least 3 learning objectives.
-For mini_assessment answers, write mark-scheme style expected answers.
+You are PrimaryAI, an expert UK primary school curriculum writer with deep knowledge of the National Curriculum.
+Return ONLY valid JSON. No markdown, no code fences, no commentary — raw JSON only.
+Set "slides" to [] — slides are generated separately.
+Use UK English spelling throughout (colour, practise, recognise, organise, behaviour, metre).
 Never include real pupil names or personal data.
 
+━━━ LESSON CONTEXT ━━━
 Year Group: ${req.year_group}
 Subject: ${req.subject}
 Topic: ${req.topic}
 Curriculum Objectives: ${objectives.join("; ")}
-Teacher Profile:
-${JSON.stringify(
-    {
-      defaultYearGroup: teacherProfile?.defaultYearGroup ?? null,
-      defaultSubject: teacherProfile?.defaultSubject ?? null,
-      tone: teacherProfile?.tone ?? "professional_uk",
-      schoolType: teacherProfile?.schoolType ?? "primary",
-      sendFocus: teacherProfile?.sendFocus ?? false,
-      styleRules: [
-        "Profile influences tone, examples, and scaffolding style.",
-        "Profile must not override factual curriculum claims.",
-      ],
-    },
-    null,
-    2
-  )}
+School Type: ${teacherProfile?.schoolType ?? "primary"}
+Teacher Tone Preference: ${teacherProfile?.tone ?? "professional_uk"}
+SEND Focus: ${teacherProfile?.sendFocus ?? false}
 
-Profile-Driven Instructions:
-- Apply profile tone and school type to explanations and examples.
-- If sendFocus is true, include robust SEND adaptations in send_adaptations and differentiated activities.
-- Do not invent curriculum facts beyond provided objectives.
+━━━ CONTENT STANDARDS ━━━
 
-Generate structured lesson pack with:
+learning_objectives — 3 to 4 items:
+  • Begin each with a Bloom's Taxonomy verb appropriate to ${req.year_group}: ${bloomsVerbs}
+  • Each objective must be specific, measurable, and directly tied to the curriculum objectives above
+  • State what pupils will be able to DO or KNOW by the end of the lesson
+  • Example for Year 4 Fractions: "Explain the relationship between a numerator and denominator using the part-whole model" or "Apply understanding of equivalent fractions to compare fractions with different denominators"
+
+teacher_explanation — 4 to 6 sentences:
+  • Written for a qualified teacher — assumes professional subject knowledge
+  • Define and use correct subject-specific vocabulary in context
+  • Reference the prior knowledge pupils are expected to bring to this lesson
+  • Describe the key conceptual step or common pedagogical approach for this topic
+  • Mention any relevant mathematical/scientific/linguistic structure the teacher should make explicit
+  • Example: "When introducing column subtraction with exchange, pupils must first be secure in understanding place value to at least 100. The key conceptual shift is recognising that one ten can be exchanged for ten ones when the subtrahend digit exceeds the minuend digit..."
+
+pupil_explanation — 3 to 5 sentences:
+  • Written at the reading level of ${req.year_group} pupils
+  • Use analogy, everyday context, or a concrete real-world example that makes the concept tangible
+  • Avoid abstract or formal language — explain as if speaking directly to the class
+  • Example for Year 3 Fractions: "A fraction is like sharing a pizza fairly between friends. If you cut it into 4 equal slices and you eat one, you have eaten one quarter of the pizza — we write that as 1/4. The bottom number tells you how many equal parts there are altogether..."
+
+worked_example — step-by-step walkthrough:
+  • Walk through ONE complete, representative example with clearly numbered steps
+  • Show all working — do not skip steps or jump to the answer
+  • Use the exact mathematical/scientific/grammatical conventions expected at ${req.year_group}
+  • End with a clearly stated solution or conclusion
+  • Example: "Step 1: Write 347 + 285 vertically, lining up hundreds, tens and ones. Step 2: Add the ones: 7 + 5 = 12. Write 2 in the ones column and carry 1 to the tens. Step 3: Add the tens: 4 + 8 + 1 (carried) = 13..."
+
+common_misconceptions — exactly 3 items:
+  • Format each as: "Pupils often think [misconception]. In fact, [correct understanding and how to address it]."
+  • Base these on well-documented errors for this exact topic and year group — not generic ones
+  • Include a brief suggestion for how to correct each misconception
+
+activities.support — 3 to 4 sentences:
+  • A concrete, scaffolded task with specific named resources (word bank, sentence frames, number line, hundred square, writing frame, visual prompt cards, base-ten blocks, etc.)
+  • Describe exactly what the pupil does, what scaffold is provided, and what a successful response looks like
+  • Appropriate for pupils working below age-related expectations
+
+activities.expected — 3 to 4 sentences:
+  • A clear independent task with explicit success criteria
+  • Describe what pupils produce or demonstrate and how they record their learning
+  • Appropriate for pupils working at age-related expectations
+
+activities.greater_depth — 3 to 4 sentences:
+  • A reasoning or open-ended challenge that demands higher-order thinking — NOT simply more of the same work
+  • Require pupils to justify, prove, spot patterns, find exceptions, explain why, or apply to an unfamiliar context
+  • Include a specific question, scenario, or prompt they respond to
+  • Appropriate for pupils working above age-related expectations
+
+send_adaptations — 3 to 4 items:
+  • Each adaptation should name the type of need it addresses (e.g. "For pupils with working memory difficulties:", "For pupils with dyslexia:", "For EAL learners:", "For pupils with processing speed difficulties:")
+  • Be concrete and actionable — name specific resources, strategies, or adjustments
+  • ${teacherProfile?.sendFocus ? "SEND focus is ON — make these particularly detailed and practical." : "Include a range of needs across the adaptations."}
+
+plenary — 2 to 4 sentences:
+  • Specify a concrete consolidation activity — not just "ask the class what they learned"
+  • Choose from: exit ticket with a specific question, show-me board challenge, think-pair-share prompt, vocabulary card sort, true/false statement voting, mini whiteboard check
+  • State exactly what question or task the teacher poses, and what evidence of learning it gathers
+
+mini_assessment.questions — exactly 4 questions in ascending challenge order:
+  • Q1: Recall — a direct knowledge or definition question
+  • Q2: Understanding — explain or describe in own words
+  • Q3: Application — solve a new example or apply the concept
+  • Q4: Greater depth — justify a reasoning claim, explain why, or evaluate a statement
+
+mini_assessment.answers — exactly 4 mark-scheme answers, one per question:
+  • Written in the style of a teacher mark scheme
+  • State the expected answer plus acceptable alternatives where appropriate
+  • For Q4, describe the key features of a full-mark response (e.g. "Award 2 marks for...")
+
+━━━ OUTPUT SCHEMA ━━━
 ${JSON.stringify(LESSON_PACK_OUTPUT_TEMPLATE, null, 2)}
   `;
 
