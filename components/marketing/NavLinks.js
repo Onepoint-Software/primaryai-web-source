@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import ThemeToggle from "./ThemeToggle";
 
 const navLinks = [
-  // Intentionally empty for now: keep pages available, but hide from main nav.
+  { href: "/contact", label: "Contact Us" },
 ];
 
 export default function NavLinks({ session }) {
@@ -33,9 +33,9 @@ export default function NavLinks({ session }) {
     : [];
 
   const allLinks = [
-    ...navLinks,
     ...(session ? [{ href: "/dashboard", label: "Dashboard" }] : []),
     ...appLinks,
+    ...navLinks,
   ];
 
   return (
@@ -43,8 +43,13 @@ export default function NavLinks({ session }) {
       {/* Desktop: centred links */}
       <div className="nav-links">
         {allLinks.map((link) => (
-          <Link key={link.href} href={link.href} className="nav-link">
-            {link.label}
+          <Link
+            key={link.href}
+            href={link.href}
+            className={`nav-link${link.phone ? " nav-link-stack" : ""}`}
+          >
+            <span>{link.label}</span>
+            {link.phone ? <span className="nav-link-sub">{link.phone}</span> : null}
           </Link>
         ))}
       </div>
@@ -112,7 +117,8 @@ export default function NavLinks({ session }) {
                 style={{ "--i": i }}
                 onClick={close}
               >
-                {link.label}
+                <span>{link.label}</span>
+                {link.phone ? <span className="mobile-nav-link-sub">{link.phone}</span> : null}
                 <svg
                   className="mobile-nav-link-arrow"
                   width="16"
