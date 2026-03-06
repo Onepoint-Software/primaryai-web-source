@@ -1166,6 +1166,21 @@ export default function DashboardPage() {
   const countScheduled = useCountUp(scheduleLoading ? 0 : scheduleEvents.length);
   const countToday = useCountUp(scheduleLoading ? 0 : todayCount, 600);
 
+  // Tile 1: progress ring (cap at 20 packs)
+  const packRingCircumference = 2 * Math.PI * 20;
+  const packRingOffset = packRingCircumference * (1 - (loading ? 0 : Math.min(items.length / 20, 1)));
+
+  // Tile 2: unique subject list for color dots
+  const subjectDots = useMemo(() => Array.from(new Set(items.map((i) => i.subject))), [items]);
+
+  // Tile 3: per-day event counts for the visible week
+  const weekSparkline = useMemo(() => Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart);
+    d.setDate(weekStart.getDate() + i);
+    return scheduleEvents.filter((e) => e.scheduled_date === toISODate(d)).length;
+  }), [scheduleEvents, weekStart]);
+  const sparkMax = Math.max(1, ...weekSparkline);
+
   // Insight card computation
   const insightData = useMemo(() => {
     if (items.length === 0) return null;
@@ -1297,10 +1312,16 @@ export default function DashboardPage() {
       {/* ── Hero stats strip ── */}
       <div className="dashboard-hero" style={{ marginBottom: "1.25rem" }}>
         <div className="dashboard-hero-stat">
-          <div className="dashboard-hero-icon-badge">
-            <svg className="dashboard-hero-stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          <div className="dashboard-hero-ring-wrap">
+            <svg className="dashboard-hero-ring" viewBox="0 0 48 48" aria-hidden="true">
+              <circle cx="24" cy="24" r="20" className="dashboard-hero-ring-track" />
+              <circle cx="24" cy="24" r="20" className="dashboard-hero-ring-fill" style={{ strokeDashoffset: packRingOffset }} />
             </svg>
+            <div className="dashboard-hero-icon-badge">
+              <svg className="dashboard-hero-stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>
+            </div>
           </div>
           <span className="dashboard-hero-value">{loading ? "–" : countPacks}</span>
           <span className="dashboard-hero-label">Lesson Packs</span>
@@ -1315,6 +1336,13 @@ export default function DashboardPage() {
           <span className="dashboard-hero-value">{loading ? "–" : countSubjects}</span>
           <span className="dashboard-hero-label">Subjects</span>
           {!loading && <span className="dashboard-hero-sub">{uniqueSubjects > 0 ? `${uniqueSubjects} covered` : "none yet"}</span>}
+          {!loading && subjectDots.length > 0 && (
+            <div className="dashboard-hero-dots" aria-hidden="true">
+              {subjectDots.slice(0, 9).map((subj) => (
+                <span key={subj} className="dashboard-hero-dot" style={{ background: subjectColor(subj) }} />
+              ))}
+            </div>
+          )}
         </div>
         <div className="dashboard-hero-stat">
           <div className="dashboard-hero-icon-badge">
@@ -1325,12 +1353,31 @@ export default function DashboardPage() {
           <span className="dashboard-hero-value">{scheduleLoading ? "–" : countScheduled}</span>
           <span className="dashboard-hero-label">Scheduled</span>
           {!scheduleLoading && <span className="dashboard-hero-sub">this week</span>}
+          {!scheduleLoading && (
+            <div className="dashboard-hero-sparkline" aria-hidden="true">
+              {weekSparkline.map((count, i) => {
+                const d = new Date(weekStart);
+                d.setDate(weekStart.getDate() + i);
+                const isToday = toISODate(d) === todayISO;
+                return (
+                  <div
+                    key={i}
+                    className={`dashboard-hero-spark-bar${isToday ? " is-today" : ""}`}
+                    style={{ height: `${Math.max(15, Math.round((count / sparkMax) * 100))}%` }}
+                  />
+                );
+              })}
+            </div>
+          )}
         </div>
         <div className="dashboard-hero-stat">
-          <div className="dashboard-hero-icon-badge">
-            <svg className="dashboard-hero-stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-            </svg>
+          <div className="dashboard-hero-badge-wrap">
+            <div className="dashboard-hero-icon-badge">
+              <svg className="dashboard-hero-stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+              </svg>
+            </div>
+            {!scheduleLoading && todayCount > 0 && <span className="dashboard-hero-live-dot" aria-label="lessons scheduled today" />}
           </div>
           <span className="dashboard-hero-value">{scheduleLoading ? "–" : countToday}</span>
           <span className="dashboard-hero-label">Today</span>
