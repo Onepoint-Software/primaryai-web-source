@@ -1297,55 +1297,55 @@ export default function DashboardPage() {
       {/* ── Hero stats strip ── */}
       <div className="dashboard-hero" style={{ marginBottom: "1.25rem" }}>
         <div className="dashboard-hero-stat">
-          <svg className="dashboard-hero-stat-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-          </svg>
+          <div className="dashboard-hero-icon-badge">
+            <svg className="dashboard-hero-stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+          </div>
           <span className="dashboard-hero-value">{loading ? "–" : countPacks}</span>
           <span className="dashboard-hero-label">Lesson Packs</span>
           {!loading && <span className="dashboard-hero-sub">{items.length === 0 ? "get started" : "in your library"}</span>}
         </div>
         <div className="dashboard-hero-stat">
-          <svg className="dashboard-hero-stat-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
-          </svg>
+          <div className="dashboard-hero-icon-badge">
+            <svg className="dashboard-hero-stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
+            </svg>
+          </div>
           <span className="dashboard-hero-value">{loading ? "–" : countSubjects}</span>
           <span className="dashboard-hero-label">Subjects</span>
           {!loading && <span className="dashboard-hero-sub">{uniqueSubjects > 0 ? `${uniqueSubjects} covered` : "none yet"}</span>}
         </div>
         <div className="dashboard-hero-stat">
-          <svg className="dashboard-hero-stat-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
-          </svg>
+          <div className="dashboard-hero-icon-badge">
+            <svg className="dashboard-hero-stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+            </svg>
+          </div>
           <span className="dashboard-hero-value">{scheduleLoading ? "–" : countScheduled}</span>
           <span className="dashboard-hero-label">Scheduled</span>
           {!scheduleLoading && <span className="dashboard-hero-sub">this week</span>}
         </div>
         <div className="dashboard-hero-stat">
-          <svg className="dashboard-hero-stat-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-          </svg>
-          <span className="dashboard-hero-value" style={!scheduleLoading && todayCount > 0 ? { color: "var(--accent)" } : {}}>
-            {scheduleLoading ? "–" : countToday}
-          </span>
+          <div className="dashboard-hero-icon-badge">
+            <svg className="dashboard-hero-stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+            </svg>
+          </div>
+          <span className="dashboard-hero-value">{scheduleLoading ? "–" : countToday}</span>
           <span className="dashboard-hero-label">Today</span>
           {!scheduleLoading && (
             <span className="dashboard-hero-sub">{todayCount > 0 ? `${todayCount} lesson${todayCount !== 1 ? "s" : ""}` : "nothing scheduled"}</span>
           )}
         </div>
         <div className="dashboard-hero-stat">
-          <svg className="dashboard-hero-stat-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
-          </svg>
+          <div className="dashboard-hero-icon-badge">
+            <svg className="dashboard-hero-stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><path d="M12 17h.01" />
+            </svg>
+          </div>
           <span className="dashboard-hero-label">Insight</span>
-          <span
-            style={{
-              marginTop: "0.2rem",
-              fontSize: "0.8rem",
-              lineHeight: 1.45,
-              color: "var(--text)",
-              fontWeight: 500,
-            }}
-          >
+          <span className="dashboard-hero-insight-text">
             {loading || !insightData
               ? "No insight yet."
               : insightData.missing.length > 0

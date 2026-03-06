@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import ThemeToggle from "./ThemeToggle";
 
 const PERSISTENT_LINKS = [
+  { href: "/", label: "Home" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/settings", label: "Settings" },
   { href: "/contact", label: "Contact Us" },
@@ -146,6 +147,12 @@ export default function NavLinks({ session }) {
           </nav>
 
           <div className="mobile-nav-footer">
+            {resolvedSession ? (
+              <div className="mobile-nav-session">
+                <span className="mobile-nav-session-label">Signed in as</span>
+                <span className="mobile-nav-session-email">{email}</span>
+              </div>
+            ) : null}
             {!resolvedSession ? (
               <>
                 <Link href="/login" className="mobile-nav-btn-ghost" onClick={close}>

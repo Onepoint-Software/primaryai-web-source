@@ -4,7 +4,7 @@ export default function PreviewLayout({ children }) {
       <style>{`
         .bg-scene { display: none !important; }
         .page-loader-wrap { display: none !important; }
-        body { overflow: hidden !important; margin: 0; padding: 0; }
+        body { overflow: auto !important; margin: 0; padding: 0; }
       `}</style>
       {children}
     </>

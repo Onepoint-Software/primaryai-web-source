@@ -255,7 +255,7 @@ export default function PartA({ answers, onChange, onNext, onBack, saving, onVal
 
       <QuestionBlock
         number={10}
-        label="Imagine an AI system and worked perfectly. What would be the single biggest difference it would make to your working week?"
+        label="Imagine an AI system that worked perfectly. What would be the single biggest difference it would make to your working week?"
       >
         <TextArea
           value={answers.a_biggest_difference || ""}

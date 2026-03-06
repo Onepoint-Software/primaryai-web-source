@@ -552,7 +552,7 @@ export default function SchedulerDrawer({
 
         {/* Body */}
         <div className="scheduler-drawer-inner">
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", minHeight: 0 }}>
+          <div className="scheduler-pack-panel" style={{ gap: "0.6rem", minHeight: 0 }}>
             <button
               className="scheduler-custom-sync-btn"
               onClick={() => { void handleSyncOutlook(); }}
