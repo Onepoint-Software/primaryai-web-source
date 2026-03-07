@@ -162,6 +162,50 @@ export async function getGoogleSyncStatus(userId: string) {
   }
 }
 
+export async function disconnectGoogleCalendar(userId: string) {
+  const { supabase } = await getConnectionRow(userId);
+
+  const { error: deleteImportedError } = await supabase
+    .from("lesson_schedule")
+    .delete()
+    .eq("user_id", userId)
+    .eq("external_source", "google");
+
+  if (deleteImportedError) {
+    throw new Error("Could not remove imported Google events");
+  }
+
+  const { error: clearWritebackError } = await supabase
+    .from("lesson_schedule")
+    .update({
+      google_event_id: null,
+      google_last_synced_at: null,
+    })
+    .eq("user_id", userId);
+
+  if (clearWritebackError) {
+    const missingColumns = ["google_event_id", "google_last_synced_at"].some((column) =>
+      String(clearWritebackError.message || "").toLowerCase().includes(column),
+    );
+    throw new Error(
+      missingColumns
+        ? "Google write-back is not ready yet. Run migration 023_google_calendar_sync.sql first."
+        : "Could not clear Google sync state",
+    );
+  }
+
+  const { error: deleteConnectionError } = await supabase
+    .from("google_calendar_connections")
+    .delete()
+    .eq("user_id", userId);
+
+  if (deleteConnectionError) {
+    throw new Error("Could not disconnect Google Calendar");
+  }
+
+  return { disconnected: true as const };
+}
+
 export async function storeGoogleConnection(args: {
   userId: string;
   code: string;

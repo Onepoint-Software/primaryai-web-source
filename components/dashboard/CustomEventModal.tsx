@@ -6,6 +6,9 @@ type Props = {
   date: string;
   initialStartTime?: string;
   initialEndTime?: string;
+  initialCategory?: string;
+  categoryOptions?: string[];
+  lockCategory?: boolean;
   saving: boolean;
   onConfirm: (data: {
     title: string;
@@ -14,6 +17,7 @@ type Props = {
     startTime: string;
     endTime: string;
     notes: string;
+    allDay: boolean;
   }) => void;
   onCancel: () => void;
 };
@@ -29,7 +33,6 @@ function formatDate(iso: string) {
 
 const CATEGORIES = [
   "Meeting",
-  "Personal",
   "Holiday",
   "Training",
   "Parent Meeting",
@@ -42,16 +45,20 @@ export default function CustomEventModal({
   date,
   initialStartTime = "09:00",
   initialEndTime = "10:00",
+  initialCategory = "Meeting",
+  categoryOptions = CATEGORIES,
+  lockCategory = false,
   saving,
   onConfirm,
   onCancel,
 }: Props) {
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("Personal");
+  const [category, setCategory] = useState(initialCategory);
   const [scheduledDate, setScheduledDate] = useState(date);
   const [startTime, setStartTime] = useState(initialStartTime);
   const [endTime, setEndTime] = useState(initialEndTime);
   const [notes, setNotes] = useState("");
+  const [allDay, setAllDay] = useState(false);
   const [error, setError] = useState("");
 
   function handleConfirm() {
@@ -63,7 +70,7 @@ export default function CustomEventModal({
       setError("Please choose a date.");
       return;
     }
-    if (startTime >= endTime) {
+    if (!allDay && startTime >= endTime) {
       setError("End time must be after start time.");
       return;
     }
@@ -72,9 +79,10 @@ export default function CustomEventModal({
       title: title.trim(),
       category,
       scheduledDate,
-      startTime,
-      endTime,
+      startTime: allDay ? "00:00" : startTime,
+      endTime: allDay ? "23:59" : endTime,
       notes,
+      allDay,
     });
   }
 
@@ -100,11 +108,15 @@ export default function CustomEventModal({
         <div className="scheduler-modal-fields">
           <div className="scheduler-modal-field">
             <label className="scheduler-modal-label">Category</label>
-            <select className="scheduler-modal-input" value={category} onChange={(e) => setCategory(e.target.value)}>
-              {CATEGORIES.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
+            {lockCategory ? (
+              <input className="scheduler-modal-input" value={category} readOnly />
+            ) : (
+              <select className="scheduler-modal-input" value={category} onChange={(e) => setCategory(e.target.value)}>
+                {categoryOptions.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            )}
           </div>
           <div className="scheduler-modal-field">
             <label className="scheduler-modal-label">Date</label>
@@ -124,6 +136,7 @@ export default function CustomEventModal({
               type="time"
               className="scheduler-modal-input"
               value={startTime}
+              disabled={allDay}
               onChange={(e) => { setStartTime(e.target.value); setError(""); }}
             />
           </div>
@@ -133,9 +146,24 @@ export default function CustomEventModal({
               type="time"
               className="scheduler-modal-input"
               value={endTime}
+              disabled={allDay}
               onChange={(e) => { setEndTime(e.target.value); setError(""); }}
             />
           </div>
+        </div>
+
+        <div className="scheduler-modal-field">
+          <label className="scheduler-modal-label" style={{ display: "flex", alignItems: "center", gap: "0.55rem" }}>
+            <input
+              type="checkbox"
+              checked={allDay}
+              onChange={(e) => {
+                setAllDay(e.target.checked);
+                setError("");
+              }}
+            />
+            All day
+          </label>
         </div>
 
         {error && <p className="scheduler-modal-error">{error}</p>}

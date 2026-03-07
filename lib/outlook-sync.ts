@@ -181,6 +181,50 @@ export async function getOutlookSyncStatus(userId: string) {
   }
 }
 
+export async function disconnectOutlookCalendar(userId: string) {
+  const { supabase } = await getConnectionRow(userId);
+
+  const { error: deleteImportedError } = await supabase
+    .from("lesson_schedule")
+    .delete()
+    .eq("user_id", userId)
+    .eq("external_source", "outlook");
+
+  if (deleteImportedError) {
+    throw new Error("Could not remove imported Outlook events");
+  }
+
+  const { error: clearWritebackError } = await supabase
+    .from("lesson_schedule")
+    .update({
+      outlook_event_id: null,
+      outlook_last_synced_at: null,
+    })
+    .eq("user_id", userId);
+
+  if (clearWritebackError) {
+    const missingColumns = ["outlook_event_id", "outlook_last_synced_at"].some((column) =>
+      String(clearWritebackError.message || "").toLowerCase().includes(column),
+    );
+    throw new Error(
+      missingColumns
+        ? "Outlook write-back is not ready yet. Run migration 022_outlook_schedule_writeback.sql first."
+        : "Could not clear Outlook sync state",
+    );
+  }
+
+  const { error: deleteConnectionError } = await supabase
+    .from("outlook_calendar_connections")
+    .delete()
+    .eq("user_id", userId);
+
+  if (deleteConnectionError) {
+    throw new Error("Could not disconnect Outlook");
+  }
+
+  return { disconnected: true as const };
+}
+
 export async function syncOutlookCalendar(userId: string) {
   const { supabase, accessToken } = await ensureValidAccessToken(userId);
   const { from, to } = syncRange();

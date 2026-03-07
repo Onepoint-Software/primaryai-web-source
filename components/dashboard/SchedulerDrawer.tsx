@@ -13,6 +13,7 @@ type Props = {
   onClose?: () => void;
   embedded?: boolean;
   onScheduleChange?: () => void;
+  onViewModeStateChange?: (mode: CalendarViewMode) => void;
   initialPacks?: PackItem[];
   initialWeekEvents?: Array<{
     id: string;
@@ -27,6 +28,13 @@ type Props = {
     end_time: string;
     notes?: string | null;
   }>;
+};
+
+type UserTerm = {
+  id: string;
+  termName: string;
+  termStartDate: string;
+  termEndDate: string;
 };
 
 function getMondayOf(date: Date): Date {
@@ -45,7 +53,13 @@ function toISO(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function getRangeForView(mode: CalendarViewMode, cursorDate: Date) {
+function findCurrentTerm(terms: UserTerm[], cursorDate: Date) {
+  const iso = toISO(cursorDate);
+  const active = terms.find((term) => iso >= term.termStartDate && iso <= term.termEndDate);
+  return active ?? null;
+}
+
+function getRangeForView(mode: CalendarViewMode, cursorDate: Date, showWeekends: boolean, currentTerm: UserTerm | null) {
   const start = new Date(cursorDate);
   start.setHours(0, 0, 0, 0);
   if (mode === "day") {
@@ -56,10 +70,13 @@ function getRangeForView(mode: CalendarViewMode, cursorDate: Date) {
     const monthEnd = new Date(start.getFullYear(), start.getMonth() + 1, 0);
     return { from: toISO(monthStart), to: toISO(monthEnd) };
   }
+  if (mode === "term" && currentTerm) {
+    return { from: currentTerm.termStartDate, to: currentTerm.termEndDate };
+  }
   const monday = getMondayOf(start);
-  const friday = new Date(monday);
-  friday.setDate(friday.getDate() + 4);
-  return { from: toISO(monday), to: toISO(friday) };
+  const weekEnd = new Date(monday);
+  weekEnd.setDate(weekEnd.getDate() + (showWeekends ? 6 : 4));
+  return { from: toISO(monday), to: toISO(weekEnd) };
 }
 
 function prettyDate(iso: string) {
@@ -89,6 +106,7 @@ export default function SchedulerDrawer({
   onClose = () => {},
   embedded = false,
   onScheduleChange,
+  onViewModeStateChange,
   initialPacks = [],
   initialWeekEvents = [],
 }: Props) {
@@ -105,6 +123,7 @@ export default function SchedulerDrawer({
       start_time: string;
       end_time: string;
       notes?: string | null;
+      all_day?: boolean;
     }): ScheduleEvent => ({
       id: String(e.id),
       lessonPackId: String(e.lesson_pack_id || ""),
@@ -117,6 +136,7 @@ export default function SchedulerDrawer({
       startTime: String(e.start_time || "").slice(0, 5),
       endTime: String(e.end_time || "").slice(0, 5),
       notes: typeof e.notes === "string" ? e.notes : "",
+      allDay: Boolean(e.all_day),
     }),
     [],
   );
@@ -126,19 +146,30 @@ export default function SchedulerDrawer({
   const [events, setEvents] = useState<ScheduleEvent[]>(
     initialWeekEvents.map(mapApiEvent),
   );
+  const [bankHolidayEvents, setBankHolidayEvents] = useState<ScheduleEvent[]>([]);
+  const [terms, setTerms] = useState<UserTerm[]>([]);
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
+  const [showWeekends, setShowWeekends] = useState(false);
   const [cursorDate, setCursorDate] = useState<Date>(() => new Date());
   const [packsLoading, setPacksLoading] = useState(initialPacks.length === 0);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [modal, setModal] = useState<ModalPayload | null>(null);
-  const [customModalDraft, setCustomModalDraft] = useState<{ date: string; startTime: string; endTime: string } | null>(null);
+  const [customModalDraft, setCustomModalDraft] = useState<{
+    date: string;
+    startTime: string;
+    endTime: string;
+    category?: string;
+    lockCategory?: boolean;
+  } | null>(null);
   const [editEventId, setEditEventId] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<ScheduleEvent | null>(null);
   const [saving, setSaving] = useState(false);
   const [syncingOutlook, setSyncingOutlook] = useState(false);
   const [backfillingOutlook, setBackfillingOutlook] = useState(false);
+  const [disconnectingOutlook, setDisconnectingOutlook] = useState(false);
   const [syncingGoogle, setSyncingGoogle] = useState(false);
   const [backfillingGoogle, setBackfillingGoogle] = useState(false);
+  const [disconnectingGoogle, setDisconnectingGoogle] = useState(false);
   const [outlookConfigured, setOutlookConfigured] = useState(true);
   const [outlookConnected, setOutlookConnected] = useState(false);
   const [outlookCanWrite, setOutlookCanWrite] = useState(false);
@@ -150,18 +181,24 @@ export default function SchedulerDrawer({
   const [googleEmail, setGoogleEmail] = useState("");
   const [googleLastSyncedAt, setGoogleLastSyncedAt] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const currentTerm = useMemo(() => findCurrentTerm(terms, cursorDate), [terms, cursorDate]);
 
+  useEffect(() => {
+    onViewModeStateChange?.(viewMode);
+  }, [onViewModeStateChange, viewMode]);
+
+  const calendarEvents = useMemo(() => [...events, ...bankHolidayEvents], [events, bankHolidayEvents]);
   const dragRef = useRef<PackItem | null>(null);
   const scheduledPackIds = useMemo(
     () =>
       Array.from(
         new Set(
-          events
+          calendarEvents
             .filter((evt) => evt.eventType !== "custom" && evt.lessonPackId)
             .map((evt) => evt.lessonPackId),
         ),
       ),
-    [events],
+    [calendarEvents],
   );
 
   // Mount guard for portal
@@ -187,11 +224,11 @@ export default function SchedulerDrawer({
   }, [initialPacks, packs.length]);
 
   useEffect(() => {
-    if (events.length === 0 && viewMode === "week" && toISO(getMondayOf(cursorDate)) === todayWeekIso) {
+    if (events.length === 0 && viewMode === "week" && !showWeekends && toISO(getMondayOf(cursorDate)) === todayWeekIso) {
       setEvents(initialWeekEvents.map(mapApiEvent));
       seededWeekEvents.current = true;
     }
-  }, [events.length, initialWeekEvents, mapApiEvent, todayWeekIso, viewMode, cursorDate]);
+  }, [events.length, initialWeekEvents, mapApiEvent, showWeekends, todayWeekIso, viewMode, cursorDate]);
 
   useEffect(() => {
     if (!open || packsLoaded.current) return;
@@ -216,16 +253,42 @@ export default function SchedulerDrawer({
       .finally(() => setPacksLoading(false));
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    fetch("/api/profile/terms", { cache: "no-store" })
+      .then((response) => response.json().catch(() => ({})))
+      .then((data) => {
+        if (Array.isArray(data?.terms)) {
+          setTerms(
+            data.terms.map((term: Record<string, string>) => ({
+              id: String(term.id || ""),
+              termName: String(term.termName || ""),
+              termStartDate: String(term.termStartDate || ""),
+              termEndDate: String(term.termEndDate || ""),
+            })),
+          );
+        }
+      })
+      .catch(() => undefined);
+  }, [open]);
+
   // Load events for the current view range
-  const loadEvents = useCallback((mode: CalendarViewMode, anchorDate: Date) => {
-    const { from, to } = getRangeForView(mode, anchorDate);
+  const loadEvents = useCallback((mode: CalendarViewMode, anchorDate: Date, includeWeekends: boolean, term: UserTerm | null) => {
+    const { from, to } = getRangeForView(mode, anchorDate, includeWeekends, term);
     setEventsLoading(true);
     setError("");
-    fetch(`/api/schedule?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
-      .then((r) => r.json())
-      .then((data) => {
+    Promise.all([
+      fetch(`/api/schedule?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { cache: "no-store" }).then((r) => r.json()),
+      fetch(`/api/calendar/bank-holidays?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { cache: "no-store" }).then((r) => r.json()),
+    ])
+      .then(([data, bankHolidayData]) => {
         if (data.ok && Array.isArray(data.events)) {
           setEvents(data.events.map(mapApiEvent));
+        }
+        if (bankHolidayData?.ok && Array.isArray(bankHolidayData.events)) {
+          setBankHolidayEvents(bankHolidayData.events.map(mapApiEvent));
+        } else {
+          setBankHolidayEvents([]);
         }
       })
       .catch(() => setError("Could not load schedule."))
@@ -234,17 +297,17 @@ export default function SchedulerDrawer({
 
   useEffect(() => {
     if (!open) return;
-    if (viewMode === "week" && toISO(getMondayOf(cursorDate)) === todayWeekIso && seededWeekEvents.current) {
+    if (viewMode === "week" && !showWeekends && toISO(getMondayOf(cursorDate)) === todayWeekIso && seededWeekEvents.current) {
       seededWeekEvents.current = false;
       return;
     }
-    loadEvents(viewMode, cursorDate);
-  }, [open, viewMode, cursorDate, loadEvents, todayWeekIso]);
+    loadEvents(viewMode, cursorDate, showWeekends, currentTerm);
+  }, [open, viewMode, cursorDate, loadEvents, showWeekends, todayWeekIso, currentTerm]);
 
   useEffect(() => {
     if (!open) return;
     const handleExternalRefresh = () => {
-      loadEvents(viewMode, cursorDate);
+      loadEvents(viewMode, cursorDate, showWeekends, currentTerm);
     };
     const handleOpenEvent = (nativeEvent: Event) => {
       const customEvent = nativeEvent as CustomEvent<{
@@ -262,7 +325,8 @@ export default function SchedulerDrawer({
       }>;
       const payload = customEvent.detail;
       if (!payload?.id) return;
-      setCursorDate(new Date(String(payload.scheduled_date || "")));
+      const [year, month, day] = String(payload.scheduled_date || "").split("-").map(Number);
+      setCursorDate(new Date(year, (month || 1) - 1, day || 1));
       setViewMode("week");
       setSelectedEvent(mapApiEvent(payload));
     };
@@ -272,7 +336,7 @@ export default function SchedulerDrawer({
       window.removeEventListener("pa:schedule-refresh", handleExternalRefresh);
       window.removeEventListener("pa:schedule-open-event", handleOpenEvent as EventListener);
     };
-  }, [open, loadEvents, viewMode, cursorDate, mapApiEvent]);
+  }, [open, loadEvents, viewMode, cursorDate, mapApiEvent, showWeekends, currentTerm]);
 
   const loadOutlookStatus = useCallback(async () => {
     const response = await fetch("/api/schedule/outlook-status", { cache: "no-store" });
@@ -339,7 +403,7 @@ export default function SchedulerDrawer({
       loadOutlookStatus()
         .then((data) => {
           if (data?.connected) {
-            loadEvents(viewMode, cursorDate);
+            loadEvents(viewMode, cursorDate, showWeekends, currentTerm);
             onScheduleChange?.();
             return;
           }
@@ -353,7 +417,7 @@ export default function SchedulerDrawer({
     }
 
     setError(messageMap[outlookResult] || outlookResult);
-  }, [open, loadEvents, loadOutlookStatus, onScheduleChange, viewMode, cursorDate]);
+  }, [open, loadEvents, loadOutlookStatus, onScheduleChange, viewMode, cursorDate, showWeekends, currentTerm]);
 
   useEffect(() => {
     if (!open || typeof window === "undefined") return;
@@ -377,7 +441,7 @@ export default function SchedulerDrawer({
       loadGoogleStatus()
         .then((data) => {
           if (data?.connected) {
-            loadEvents(viewMode, cursorDate);
+            loadEvents(viewMode, cursorDate, showWeekends, currentTerm);
             onScheduleChange?.();
             return;
           }
@@ -391,9 +455,19 @@ export default function SchedulerDrawer({
     }
 
     setError(messageMap[googleResult] || googleResult);
-  }, [open, loadEvents, loadGoogleStatus, onScheduleChange, viewMode, cursorDate]);
+  }, [open, loadEvents, loadGoogleStatus, onScheduleChange, viewMode, cursorDate, showWeekends, currentTerm]);
 
   function handleNavigate(delta: -1 | 1) {
+    if (viewMode === "term") {
+      if (terms.length === 0) return;
+      const currentIndex = currentTerm ? terms.findIndex((term) => term.id === currentTerm.id) : -1;
+      const nextIndex = currentIndex < 0 ? 0 : Math.max(0, Math.min(terms.length - 1, currentIndex + delta));
+      const nextTerm = terms[nextIndex];
+      if (!nextTerm) return;
+      const [year, month, day] = nextTerm.termStartDate.split("-").map(Number);
+      setCursorDate(new Date(year, (month || 1) - 1, day || 1));
+      return;
+    }
     setCursorDate((prev) => {
       const d = new Date(prev);
       if (viewMode === "day") d.setDate(d.getDate() + delta);
@@ -542,7 +616,7 @@ export default function SchedulerDrawer({
     } catch {
       // Reload to restore correct state on failure
       setError("Could not remove event.");
-      loadEvents(viewMode, cursorDate);
+      loadEvents(viewMode, cursorDate, showWeekends, currentTerm);
       onScheduleChange?.();
     }
   }
@@ -554,6 +628,7 @@ export default function SchedulerDrawer({
     startTime: string;
     endTime: string;
     notes: string;
+    allDay: boolean;
   }) {
     setSaving(true);
     setError("");
@@ -593,6 +668,7 @@ export default function SchedulerDrawer({
           startTime: e.start_time.slice(0, 5),
           endTime: e.end_time.slice(0, 5),
           notes: e.notes,
+          allDay: data.allDay || (String(e.start_time || "").slice(0, 5) === "00:00" && String(e.end_time || "").slice(0, 5) === "23:59"),
         },
       ]);
       onScheduleChange?.();
@@ -633,7 +709,7 @@ export default function SchedulerDrawer({
       }
       setOutlookLastSyncedAt(data?.syncedAt ? String(data.syncedAt) : new Date().toISOString());
       setOutlookConnected(true);
-      loadEvents(viewMode, cursorDate);
+      loadEvents(viewMode, cursorDate, showWeekends, currentTerm);
       onScheduleChange?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not sync Outlook. Please try again.";
@@ -652,13 +728,36 @@ export default function SchedulerDrawer({
       if (!res.ok || !data?.ok) {
         throw new Error(data?.error || "Could not sync existing Outlook events");
       }
-      loadEvents(viewMode, cursorDate);
+      loadEvents(viewMode, cursorDate, showWeekends, currentTerm);
       onScheduleChange?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not sync existing Outlook events.";
       setError(message);
     } finally {
       setBackfillingOutlook(false);
+    }
+  }
+
+  async function handleDisconnectOutlook() {
+    setDisconnectingOutlook(true);
+    setError("");
+    try {
+      const res = await fetch("/api/schedule/outlook-disconnect", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "Could not disconnect Outlook");
+      }
+      setOutlookConnected(false);
+      setOutlookCanWrite(false);
+      setOutlookEmail("");
+      setOutlookLastSyncedAt(null);
+      loadEvents(viewMode, cursorDate, showWeekends, currentTerm);
+      onScheduleChange?.();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not disconnect Outlook.";
+      setError(message);
+    } finally {
+      setDisconnectingOutlook(false);
     }
   }
 
@@ -691,7 +790,7 @@ export default function SchedulerDrawer({
       }
       setGoogleLastSyncedAt(data?.syncedAt ? String(data.syncedAt) : new Date().toISOString());
       setGoogleConnected(true);
-      loadEvents(viewMode, cursorDate);
+      loadEvents(viewMode, cursorDate, showWeekends, currentTerm);
       onScheduleChange?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not sync Google Calendar. Please try again.";
@@ -710,13 +809,36 @@ export default function SchedulerDrawer({
       if (!res.ok || !data?.ok) {
         throw new Error(data?.error || "Could not sync existing Google Calendar events");
       }
-      loadEvents(viewMode, cursorDate);
+      loadEvents(viewMode, cursorDate, showWeekends, currentTerm);
       onScheduleChange?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not sync existing Google Calendar events.";
       setError(message);
     } finally {
       setBackfillingGoogle(false);
+    }
+  }
+
+  async function handleDisconnectGoogleCalendar() {
+    setDisconnectingGoogle(true);
+    setError("");
+    try {
+      const res = await fetch("/api/schedule/google-disconnect", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "Could not disconnect Google Calendar");
+      }
+      setGoogleConnected(false);
+      setGoogleCanWrite(false);
+      setGoogleEmail("");
+      setGoogleLastSyncedAt(null);
+      loadEvents(viewMode, cursorDate, showWeekends, currentTerm);
+      onScheduleChange?.();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not disconnect Google Calendar.";
+      setError(message);
+    } finally {
+      setDisconnectingGoogle(false);
     }
   }
 
@@ -762,29 +884,52 @@ export default function SchedulerDrawer({
               </svg>
               My Timetable
             </h2>
-            <div style={{ marginLeft: "auto", display: "inline-flex", border: "1px solid var(--border)", borderRadius: "999px", overflow: "hidden" }}>
-              {(["week", "day", "month"] as CalendarViewMode[]).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setViewMode(mode)}
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "0.65rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
+              {viewMode === "week" ? (
+                <label
                   style={{
-                    border: "none",
-                    borderRight: mode !== "month" ? "1px solid var(--border)" : "none",
-                    background: viewMode === mode ? "var(--accent)" : "var(--surface)",
-                    color: viewMode === mode ? "white" : "var(--muted)",
-                    fontSize: "0.7rem",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    fontSize: "0.72rem",
                     fontWeight: 700,
-                    letterSpacing: "0.02em",
-                    textTransform: "capitalize",
-                    padding: "0.28rem 0.62rem",
-                    cursor: "pointer",
-                    textShadow: viewMode === mode ? "0 1px 0 rgb(0 0 0 / 0.22)" : undefined,
+                    color: "rgba(255,255,255,0.95)",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  {mode}
-                </button>
-              ))}
+                  <input
+                    type="checkbox"
+                    checked={showWeekends}
+                    onChange={(event) => setShowWeekends(event.target.checked)}
+                    style={{ accentColor: "var(--accent-2)" }}
+                  />
+                  <span>Show weekends</span>
+                </label>
+              ) : null}
+              <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: "999px", overflow: "hidden" }}>
+                {(["week", "day", "month", "term"] as CalendarViewMode[]).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setViewMode(mode)}
+                    style={{
+                      border: "none",
+                      borderRight: mode !== "term" ? "1px solid var(--border)" : "none",
+                      background: viewMode === mode ? "var(--accent)" : "var(--surface)",
+                      color: viewMode === mode ? "white" : "var(--muted)",
+                      fontSize: "0.7rem",
+                      fontWeight: 700,
+                      letterSpacing: "0.02em",
+                      textTransform: "capitalize",
+                      padding: "0.28rem 0.62rem",
+                      cursor: "pointer",
+                      textShadow: viewMode === mode ? "0 1px 0 rgb(0 0 0 / 0.22)" : undefined,
+                    }}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
             </div>
             {!embedded ? (
               <button className="scheduler-close-btn" onClick={onClose} aria-label="Close scheduler">
@@ -801,6 +946,39 @@ export default function SchedulerDrawer({
         {/* Body */}
         <div className="scheduler-drawer-inner">
           <div className="scheduler-pack-panel" style={{ gap: "0.6rem", minHeight: 0 }}>
+            <button
+              className="scheduler-custom-add-btn scheduler-custom-add-btn-personal"
+              onClick={() => setCustomModalDraft({ date: toISO(cursorDate), startTime: "09:00", endTime: "10:00", category: "Personal", lockCategory: true })}
+            >
+              New Personal Event
+            </button>
+            <button
+              className="scheduler-custom-add-btn"
+              onClick={() => setCustomModalDraft({ date: toISO(cursorDate), startTime: "09:00", endTime: "10:00", category: "Meeting", lockCategory: false })}
+            >
+              New Custom Event
+            </button>
+            <Link
+              href="/lesson-pack?from=scheduler"
+              className="scheduler-custom-add-btn scheduler-custom-add-btn-lesson"
+              onClick={onClose}
+              style={{ textDecoration: "none", textAlign: "center" as const }}
+            >
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.45rem", justifyContent: "center" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                <span>New lesson</span>
+              </span>
+            </Link>
+            <PackList
+              packs={packs}
+              scheduledPackIds={scheduledPackIds}
+              loading={packsLoading}
+              onUnscheduleDrop={(eventId) => { void handleEventDelete(eventId); }}
+              onDragStart={(pack) => { dragRef.current = pack; }}
+              onDragEnd={() => { dragRef.current = null; }}
+            />
             <button
               className="scheduler-custom-sync-btn"
               onClick={() => { void handleSyncOutlook(); }}
@@ -845,13 +1023,22 @@ export default function SchedulerDrawer({
               </p>
             )}
             {outlookConnected ? (
-              <button
-                className="scheduler-sync-secondary-btn"
-                onClick={() => { void handleBackfillOutlook(); }}
-                disabled={backfillingOutlook}
-              >
-                {backfillingOutlook ? "Syncing existing Outlook events…" : "Sync existing events to Outlook"}
-              </button>
+              <>
+                <button
+                  className="scheduler-sync-secondary-btn"
+                  onClick={() => { void handleBackfillOutlook(); }}
+                  disabled={backfillingOutlook}
+                >
+                  {backfillingOutlook ? "Syncing existing Outlook events…" : "Sync existing events to Outlook"}
+                </button>
+                <button
+                  className="scheduler-sync-secondary-btn"
+                  onClick={() => { void handleDisconnectOutlook(); }}
+                  disabled={disconnectingOutlook}
+                >
+                  {disconnectingOutlook ? "Disconnecting Outlook…" : "Disconnect Outlook"}
+                </button>
+              </>
             ) : null}
             <button
               className="scheduler-custom-sync-btn"
@@ -893,48 +1080,37 @@ export default function SchedulerDrawer({
               </p>
             )}
             {googleConnected ? (
-              <button
-                className="scheduler-sync-secondary-btn"
-                onClick={() => { void handleBackfillGoogleCalendar(); }}
-                disabled={backfillingGoogle}
-              >
-                {backfillingGoogle ? "Syncing existing Google events…" : "Sync existing events to Google"}
-              </button>
+              <>
+                <button
+                  className="scheduler-sync-secondary-btn"
+                  onClick={() => { void handleBackfillGoogleCalendar(); }}
+                  disabled={backfillingGoogle}
+                >
+                  {backfillingGoogle ? "Syncing existing Google events…" : "Sync existing events to Google"}
+                </button>
+                <button
+                  className="scheduler-sync-secondary-btn"
+                  onClick={() => { void handleDisconnectGoogleCalendar(); }}
+                  disabled={disconnectingGoogle}
+                >
+                  {disconnectingGoogle ? "Disconnecting Google…" : "Disconnect Google"}
+                </button>
+              </>
             ) : null}
-            <button
-              className="scheduler-custom-add-btn scheduler-custom-add-btn-personal"
-              onClick={() => setCustomModalDraft({ date: toISO(cursorDate), startTime: "09:00", endTime: "10:00" })}
-            >
-              New Personal Event
-            </button>
-            <Link
-              href="/lesson-pack?from=scheduler"
-              className="scheduler-custom-add-btn scheduler-custom-add-btn-lesson"
-              onClick={onClose}
-              style={{ textDecoration: "none", textAlign: "center" as const }}
-            >
-              New lesson
-            </Link>
-            <PackList
-              packs={packs}
-              scheduledPackIds={scheduledPackIds}
-              loading={packsLoading}
-              onUnscheduleDrop={(eventId) => { void handleEventDelete(eventId); }}
-              onDragStart={(pack) => { dragRef.current = pack; }}
-              onDragEnd={() => { dragRef.current = null; }}
-            />
           </div>
 
-          <WeekCalendar
-            events={events}
+            <WeekCalendar
+            events={calendarEvents}
             viewMode={viewMode}
             cursorDate={cursorDate}
+            currentTerm={currentTerm}
+            showWeekends={showWeekends}
             showViewToggle={false}
             onViewModeChange={setViewMode}
             onNavigate={handleNavigate}
             onGoToday={handleGoToday}
             onDrop={handleDrop}
-            onEmptySlotClick={(date, slotTime) => setCustomModalDraft({ date, startTime: slotTime, endTime: addMinutes(slotTime, 60) })}
+            onEmptySlotClick={(date, slotTime) => setCustomModalDraft({ date, startTime: slotTime, endTime: addMinutes(slotTime, 60), category: "Meeting", lockCategory: false })}
             onEventReschedule={handleEventReschedule}
             onEventDelete={handleEventDelete}
             onEventClick={setSelectedEvent}
@@ -998,6 +1174,8 @@ export default function SchedulerDrawer({
             date={customModalDraft.date}
             initialStartTime={customModalDraft.startTime}
             initialEndTime={customModalDraft.endTime}
+            initialCategory={customModalDraft.category}
+            lockCategory={Boolean(customModalDraft.lockCategory)}
             saving={saving}
             onConfirm={handleCreateCustomEvent}
             onCancel={() => setCustomModalDraft(null)}

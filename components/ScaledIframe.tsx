@@ -7,9 +7,16 @@ interface Props {
   nativeWidth?: number;
   nativeHeight?: number;
   title: string;
+  loading?: "eager" | "lazy";
 }
 
-export default function ScaledIframe({ src, nativeWidth = 1440, nativeHeight = 900, title }: Props) {
+export default function ScaledIframe({
+  src,
+  nativeWidth = 1440,
+  nativeHeight = 900,
+  title,
+  loading = "lazy",
+}: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -40,7 +47,7 @@ export default function ScaledIframe({ src, nativeWidth = 1440, nativeHeight = 9
         title={title}
         width={nativeWidth}
         height={nativeHeight}
-        loading="lazy"
+        loading={loading}
         style={{
           border: "none",
           pointerEvents: "none",

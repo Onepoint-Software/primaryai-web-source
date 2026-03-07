@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { subjectColor } from "@/lib/subjectColor";
 import { ScheduleEventIcon } from "@/lib/schedule-event-icon";
 
@@ -16,14 +16,24 @@ export type ScheduleEvent = {
   startTime: string; // HH:MM
   endTime: string; // HH:MM
   notes?: string;
+  allDay?: boolean;
 };
 
-export type CalendarViewMode = "week" | "day" | "month";
+export type CalendarViewMode = "week" | "day" | "month" | "term";
+
+type CalendarTerm = {
+  id: string;
+  termName: string;
+  termStartDate: string;
+  termEndDate: string;
+};
 
 type Props = {
   events: ScheduleEvent[];
   viewMode: CalendarViewMode;
   cursorDate: Date;
+  currentTerm?: CalendarTerm | null;
+  showWeekends?: boolean;
   showViewToggle?: boolean;
   onViewModeChange: (mode: CalendarViewMode) => void;
   onNavigate: (delta: -1 | 1) => void;
@@ -35,9 +45,13 @@ type Props = {
   onEventClick: (event: ScheduleEvent) => void;
 };
 
-const HOUR_START = 8;
-const SLOT_COUNT = 20;
-const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+const HOUR_START = 6;
+const SLOT_COUNT = 36;
+const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DEFAULT_VISIBLE_START_HOUR = 6;
+const SLOT_HEIGHT_PX = 28;
+const CALENDAR_HEADER_HEIGHT_PX = 52;
+const ALL_DAY_ROW_HEIGHT_PX = 34;
 
 function buildSlots(): string[] {
   const slots: string[] = [];
@@ -72,10 +86,10 @@ function toISO(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function formatWeekLabel(monday: Date): string {
-  const friday = addDays(monday, 4);
+function formatWeekLabel(monday: Date, showWeekends: boolean): string {
+  const periodEnd = addDays(monday, showWeekends ? 6 : 4);
   const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" };
-  return `${monday.toLocaleDateString("en-GB", opts)} – ${friday.toLocaleDateString("en-GB", opts)}`;
+  return `${monday.toLocaleDateString("en-GB", opts)} – ${periodEnd.toLocaleDateString("en-GB", opts)}`;
 }
 
 function formatDayLabel(day: Date): string {
@@ -109,15 +123,44 @@ function isImportedCalendarEvent(event: ScheduleEvent) {
   return event.eventType === "custom" && (category === "outlook_import" || category === "google_import");
 }
 
+function isBankHolidayEvent(event: ScheduleEvent) {
+  const category = String(event.eventCategory || "").toLowerCase();
+  return event.eventType === "custom" && (category === "bank_holiday" || String(event.subject || "").toLowerCase() === "bank holiday");
+}
+
+function eventColor(event: ScheduleEvent) {
+  if (isBankHolidayEvent(event)) return "#d4a017";
+  if (isImportedCalendarEvent(event)) return "#2563eb";
+  if (isPersonalEvent(event)) return "#10b981";
+  return subjectColor(event.subject);
+}
+
 function isPersonalEvent(event: ScheduleEvent) {
   const category = String(event.eventCategory || "").toLowerCase();
   return event.eventType === "custom" && (category === "personal" || String(event.subject || "").toLowerCase() === "personal");
+}
+
+function isTaskEvent(event: ScheduleEvent) {
+  const category = String(event.eventCategory || "").toLowerCase();
+  return event.eventType === "custom" && category.startsWith("task");
+}
+
+function getTermRowPriority(events: ScheduleEvent[]) {
+  if (events.some((event) => isPersonalEvent(event))) return 0;
+  if (events.some((event) => event.eventType !== "custom")) return 1;
+  if (events.some((event) => !isImportedCalendarEvent(event) && !isTaskEvent(event) && !isBankHolidayEvent(event))) return 2;
+  if (events.some((event) => isTaskEvent(event))) return 3;
+  if (events.some((event) => isImportedCalendarEvent(event))) return 4;
+  if (events.some((event) => isBankHolidayEvent(event))) return 5;
+  return 6;
 }
 
 export default function WeekCalendar({
   events,
   viewMode,
   cursorDate,
+  currentTerm = null,
+  showWeekends = false,
   showViewToggle = true,
   onViewModeChange,
   onNavigate,
@@ -129,23 +172,40 @@ export default function WeekCalendar({
   onEventClick,
 }: Props) {
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const startSlotMarkerRef = useRef<HTMLDivElement | null>(null);
+  const autoScrollKeyRef = useRef<string>("");
   const todayISO = toISO(new Date());
+
+  const scrollToDefaultHour = useMemo(
+    () => () => {
+      const container = scrollRef.current;
+      if (!container) return;
+      const defaultSlotIndex = Math.max(0, (DEFAULT_VISIBLE_START_HOUR - HOUR_START) * 2);
+      const targetScrollTop = Math.max(
+        0,
+        CALENDAR_HEADER_HEIGHT_PX + ALL_DAY_ROW_HEIGHT_PX + defaultSlotIndex * SLOT_HEIGHT_PX,
+      );
+      container.scrollTop = targetScrollTop;
+    },
+    [],
+  );
 
   const weekDays = useMemo(() => {
     if (viewMode === "day") {
       return [{ iso: toISO(cursorDate), date: cursorDate, label: cursorDate.toLocaleDateString("en-GB", { weekday: "short" }), dayNum: cursorDate.getDate() }];
     }
     const monday = startOfWeekMonday(cursorDate);
-    return Array.from({ length: 5 }, (_, i) => {
+    return Array.from({ length: showWeekends ? 7 : 5 }, (_, i) => {
       const d = addDays(monday, i);
       return { iso: toISO(d), date: d, label: DAY_NAMES[i], dayNum: d.getDate() };
     });
-  }, [cursorDate, viewMode]);
+  }, [cursorDate, showWeekends, viewMode]);
 
   const conflictIds = useMemo(() => {
     const ids = new Set<string>();
     const byDay = new Map<string, ScheduleEvent[]>();
-    for (const evt of events) {
+    for (const evt of events.filter((event) => !event.allDay && !isBankHolidayEvent(event))) {
       const dayEvents = byDay.get(evt.scheduledDate) ?? [];
       dayEvents.push(evt);
       byDay.set(evt.scheduledDate, dayEvents);
@@ -175,9 +235,42 @@ export default function WeekCalendar({
     return ids;
   }, [events]);
 
+  const timedEvents = useMemo(
+    () => events.filter((event) => !event.allDay && !isBankHolidayEvent(event)),
+    [events],
+  );
+
+  const allDayEventsByDate = useMemo(() => {
+    const byDate: Record<string, ScheduleEvent[]> = {};
+    for (const event of events.filter((evt) => evt.allDay || isBankHolidayEvent(evt))) {
+      (byDate[event.scheduledDate] ??= []).push(event);
+    }
+    return byDate;
+  }, [events]);
+
+  const bankHolidayDates = useMemo(() => {
+    const dates = new Set<string>();
+    for (const event of events) {
+      if (isBankHolidayEvent(event)) {
+        dates.add(event.scheduledDate);
+      }
+    }
+    return dates;
+  }, [events]);
+
+  const allDayColumnColors = useMemo(() => {
+    const byDate: Record<string, string> = {};
+    for (const event of events.filter((evt) => evt.allDay || isBankHolidayEvent(evt))) {
+      if (!byDate[event.scheduledDate]) {
+        byDate[event.scheduledDate] = eventColor(event);
+      }
+    }
+    return byDate;
+  }, [events]);
+
   const eventsBySlot: Record<string, ScheduleEvent[]> = {};
   if (viewMode !== "month") {
-    for (const evt of events) {
+    for (const evt of timedEvents) {
       const dayIdx = weekDays.findIndex((d) => d.iso === evt.scheduledDate);
       if (dayIdx < 0) continue;
       const slotIdx = timeToSlotIndex(evt.startTime);
@@ -189,11 +282,162 @@ export default function WeekCalendar({
 
   const monthDays = useMemo(() => (viewMode === "month" ? monthGridDays(cursorDate) : []), [cursorDate, viewMode]);
 
+  const termDays = useMemo(() => {
+    if (!currentTerm?.termStartDate || !currentTerm?.termEndDate) return [];
+    const [startYear, startMonth, startDay] = currentTerm.termStartDate.split("-").map(Number);
+    const [endYear, endMonth, endDay] = currentTerm.termEndDate.split("-").map(Number);
+    const start = new Date(startYear, (startMonth || 1) - 1, startDay || 1);
+    const end = new Date(endYear, (endMonth || 1) - 1, endDay || 1);
+    const days: Array<{ iso: string; date: Date; isWeekend: boolean; isMonday: boolean; isToday: boolean }> = [];
+    for (let cursor = new Date(start); cursor <= end; cursor = addDays(cursor, 1)) {
+      const iso = toISO(cursor);
+      const day = cursor.getDay();
+      days.push({
+        iso,
+        date: new Date(cursor),
+        isWeekend: day === 0 || day === 6,
+        isMonday: day === 1,
+        isToday: iso === todayISO,
+      });
+    }
+    return days;
+  }, [currentTerm, todayISO]);
+
+  const termEvents = useMemo(
+    () =>
+      [...events]
+        .sort((a, b) =>
+          a.scheduledDate !== b.scheduledDate
+            ? a.scheduledDate.localeCompare(b.scheduledDate)
+            : a.startTime.localeCompare(b.startTime),
+        ),
+    [events],
+  );
+
+  const termSubjectRows = useMemo(() => {
+    const FULL_DAY_MINS = 360; // 6-hour school day = 100%
+    const grouped = new Map<string, ScheduleEvent[]>();
+    for (const event of termEvents) {
+      const key = String(event.subject || "Other").trim() || "Other";
+      const arr = grouped.get(key) ?? [];
+      arr.push(event);
+      grouped.set(key, arr);
+    }
+
+    return Array.from(grouped.entries())
+      .map(([subject, rowEvents]) => {
+        const dayData = new Map<string, { mins: number; events: ScheduleEvent[] }>();
+        for (const event of rowEvents) {
+          const entry = dayData.get(event.scheduledDate) ?? { mins: 0, events: [] };
+          if (event.allDay) {
+            entry.mins += FULL_DAY_MINS;
+          } else {
+            const [sh, sm] = String(event.startTime || "00:00").split(":").map(Number);
+            const [eh, em] = String(event.endTime || "00:00").split(":").map(Number);
+            entry.mins += Math.max(0, (eh * 60 + em) - (sh * 60 + sm));
+          }
+          entry.events.push(event);
+          dayData.set(event.scheduledDate, entry);
+        }
+        return {
+          subject,
+          priority: getTermRowPriority(rowEvents),
+          totalEvents: rowEvents.length,
+          color: rowEvents.length > 0 ? eventColor(rowEvents[0]) : "#888",
+          dayData,
+        };
+      })
+      .sort((a, b) => {
+        if (a.priority !== b.priority) return a.priority - b.priority;
+        return a.subject.localeCompare(b.subject);
+      });
+  }, [termEvents]);
+
+  const termDayTotals = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const event of termEvents) {
+      totals.set(event.scheduledDate, (totals.get(event.scheduledDate) ?? 0) + 1);
+    }
+    return totals;
+  }, [termEvents]);
+
+  const termColTemplate = useMemo(
+    () => termDays.map(d => d.isWeekend ? "18px" : "minmax(28px, 1fr)").join(" "),
+    [termDays],
+  );
+
   const navLabel = useMemo(() => {
     if (viewMode === "day") return formatDayLabel(cursorDate);
     if (viewMode === "month") return formatMonthLabel(cursorDate);
-    return formatWeekLabel(startOfWeekMonday(cursorDate));
-  }, [cursorDate, viewMode]);
+    if (viewMode === "term") {
+      if (!currentTerm) return "No term selected";
+      return `${currentTerm.termName} · ${currentTerm.termStartDate} to ${currentTerm.termEndDate}`;
+    }
+    return formatWeekLabel(startOfWeekMonday(cursorDate), showWeekends);
+  }, [currentTerm, cursorDate, showWeekends, viewMode]);
+
+  useLayoutEffect(() => {
+    if (viewMode === "month" || viewMode === "term") return;
+    const container = scrollRef.current;
+    const marker = startSlotMarkerRef.current;
+    if (!container) return;
+    if (!marker) return;
+    const scrollKey = `${viewMode}-${toISO(cursorDate)}-${showWeekends}-${events.length}`;
+    if (autoScrollKeyRef.current === scrollKey) return;
+    autoScrollKeyRef.current = scrollKey;
+    let rafId = 0;
+    let intervalId = 0;
+    let attempts = 0;
+    const applyScroll = () => {
+      scrollToDefaultHour();
+    };
+    rafId = window.requestAnimationFrame(() => {
+      applyScroll();
+    });
+    intervalId = window.setInterval(() => {
+      attempts += 1;
+      applyScroll();
+      const liveContainer = scrollRef.current;
+      const defaultSlotIndex = Math.max(0, (DEFAULT_VISIBLE_START_HOUR - HOUR_START) * 2);
+      const targetScrollTop = Math.max(
+        0,
+        CALENDAR_HEADER_HEIGHT_PX + ALL_DAY_ROW_HEIGHT_PX + defaultSlotIndex * SLOT_HEIGHT_PX,
+      );
+      if (!liveContainer || Math.abs(liveContainer.scrollTop - targetScrollTop) < 2 || attempts >= 8) {
+        window.clearInterval(intervalId);
+      }
+    }, 80);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.clearInterval(intervalId);
+    };
+  }, [cursorDate, events.length, scrollToDefaultHour, showWeekends, viewMode]);
+
+  useEffect(() => {
+    if (viewMode === "month" || viewMode === "term") return;
+    const timers = [0, 60, 180, 360, 720].map((delay) =>
+      window.setTimeout(() => {
+        scrollToDefaultHour();
+      }, delay),
+    );
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [cursorDate, events.length, scrollToDefaultHour, showWeekends, viewMode]);
+
+  const calendarGridStyle = useMemo(() => {
+    if (viewMode === "day") {
+      return { gridTemplateColumns: "66px minmax(0, 1fr)" };
+    }
+    if (viewMode === "term") {
+      return undefined;
+    }
+    const dayCount = weekDays.length;
+    return {
+      gridTemplateColumns: `40px repeat(${dayCount}, minmax(62px, 1fr))`,
+      minWidth: `${40 + dayCount * 62}px`,
+    };
+  }, [viewMode, weekDays.length]);
 
   return (
     <div className="scheduler-cal-panel" style={{ position: "relative" }}>
@@ -209,14 +453,14 @@ export default function WeekCalendar({
 
         {showViewToggle ? (
           <div style={{ marginLeft: "auto", display: "inline-flex", border: "1px solid var(--border)", borderRadius: "999px", overflow: "hidden" }}>
-            {(["week", "day", "month"] as CalendarViewMode[]).map((mode) => (
+            {(["week", "day", "month", "term"] as CalendarViewMode[]).map((mode) => (
               <button
                 key={mode}
                 type="button"
                 onClick={() => onViewModeChange(mode)}
                 style={{
                   border: "none",
-                  borderRight: mode !== "month" ? "1px solid var(--border)" : "none",
+                  borderRight: mode !== "term" ? "1px solid var(--border)" : "none",
                   background: viewMode === mode ? "var(--accent)" : "var(--surface)",
                   color: viewMode === mode ? "white" : "var(--muted)",
                   fontSize: "0.72rem",
@@ -234,28 +478,6 @@ export default function WeekCalendar({
           </div>
         ) : null}
       </div>
-
-      {viewMode !== "month" && (
-        <div
-          className="week-cal-drag-hint"
-          style={{
-            position: "absolute",
-            top: "0.5rem",
-            right: "0.6rem",
-            zIndex: 12,
-            pointerEvents: "none",
-            fontSize: "0.68rem",
-            color: "var(--muted)",
-            border: "1px solid var(--border)",
-            background: "color-mix(in srgb, var(--surface) 86%, transparent)",
-            borderRadius: "999px",
-            padding: "0.18rem 0.5rem",
-            whiteSpace: "nowrap",
-          }}
-        >
-          ↔ Drag and drop to schedule or reschedule
-        </div>
-      )}
 
       {viewMode === "month" ? (
         <div style={{ border: "1px solid var(--border)", borderRadius: "12px", overflow: "hidden", background: "var(--surface)" }}>
@@ -298,7 +520,7 @@ export default function WeekCalendar({
                       const isPersonal = isPersonalEvent(evt);
                       const taskCategory = String(evt.eventCategory || "").toLowerCase();
                       const isDoneTask = taskCategory === "task_done" || /^\s*done\b/i.test(String(evt.title || ""));
-                      const color = isImported ? "#2563eb" : isPersonal ? "#10b981" : subjectColor(evt.subject);
+                      const color = eventColor(evt);
                       return (
                         <button
                           key={evt.id}
@@ -333,29 +555,166 @@ export default function WeekCalendar({
             })}
           </div>
         </div>
+      ) : viewMode === "term" ? (
+        currentTerm && termDays.length > 0 ? (
+          <div className="scheduler-term-scroll">
+            <div
+              className="scheduler-term-grid"
+              style={{
+                gridTemplateColumns: `180px ${termColTemplate}`,
+                minWidth: `${180 + termDays.reduce((sum, d) => sum + (d.isWeekend ? 18 : 28), 0)}px`,
+              }}
+            >
+              <div className="scheduler-term-head scheduler-term-head-label">Subject</div>
+              {termDays.map((day, dayIdx) => {
+                const showMonth = !day.isWeekend && (dayIdx === 0 || day.date.getDate() === 1);
+                return (
+                  <div
+                    key={day.iso}
+                    className={`scheduler-term-head${day.isToday ? " is-today" : ""}${day.isWeekend ? " is-weekend" : ""}${day.isMonday ? " is-week-start" : ""}${allDayColumnColors[day.iso] ? " scheduler-all-day-col" : ""}`}
+                    style={allDayColumnColors[day.iso] ? { background: `color-mix(in srgb, ${allDayColumnColors[day.iso]} 12%, var(--surface))` } : undefined}
+                  >
+                    {showMonth && <span className="scheduler-term-head-month">{day.date.toLocaleDateString("en-GB", { month: "short" })}</span>}
+                    <span className="scheduler-term-head-day">{day.date.toLocaleDateString("en-GB", { weekday: "narrow" })}</span>
+                    <span className="scheduler-term-head-date">{day.date.getDate()}</span>
+                  </div>
+                );
+              })}
+
+              {termSubjectRows.length > 0 ? termSubjectRows.map((row) => (
+                <div key={row.subject} style={{ display: "contents" }}>
+                  <div className="scheduler-term-row-label scheduler-term-row-label-subject">
+                    <span className="scheduler-term-row-icon">
+                      <ScheduleEventIcon subject={row.subject} size={12} />
+                    </span>
+                    <span className="scheduler-term-row-text">
+                      <span className="scheduler-term-row-title">{row.subject}</span>
+                      <span className="scheduler-term-row-meta">
+                        {row.totalEvents} {row.totalEvents === 1 ? "item" : "items"} this term
+                      </span>
+                    </span>
+                  </div>
+                  <div
+                    className="scheduler-term-row-track"
+                    style={{
+                      gridColumn: `2 / span ${termDays.length}`,
+                      gridTemplateColumns: termColTemplate,
+                    }}
+                  >
+                    {termDays.map((day, dayIdx) => {
+                      const dayEntry = row.dayData.get(day.iso);
+                      const dayTotal = termDayTotals.get(day.iso) ?? 0;
+                      const pct = dayEntry && dayTotal > 0 ? dayEntry.events.length / dayTotal : 0;
+                      const firstEvent = dayEntry?.events[0];
+                      const tooltipText = dayEntry
+                        ? `${dayEntry.events.length} of ${dayTotal} event${dayTotal !== 1 ? "s" : ""} today · ${dayEntry.mins} min`
+                        : undefined;
+                      return (
+                        <div
+                          key={`${row.subject}-${day.iso}`}
+                          className={`scheduler-term-row-cell${day.isWeekend ? " is-weekend" : ""}${day.isMonday ? " is-week-start" : ""}${pct > 0 ? " has-events" : ""}${allDayColumnColors[day.iso] ? " scheduler-all-day-col" : ""}`}
+                          style={{
+                            gridColumn: dayIdx + 1,
+                            background: pct > 0
+                              ? `linear-gradient(to top, color-mix(in srgb, ${row.color} 55%, var(--surface)) ${Math.round(pct * 100)}%, var(--surface) ${Math.round(pct * 100)}%)`
+                              : allDayColumnColors[day.iso] ? `color-mix(in srgb, ${allDayColumnColors[day.iso]} 10%, var(--surface))` : undefined,
+                          }}
+                          onClick={firstEvent ? () => onEventClick(firstEvent) : undefined}
+                          title={tooltipText}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              )) : (
+                <>
+                  <div className="scheduler-term-row-label scheduler-term-row-label-empty">No events in this term.</div>
+                  <div className="scheduler-term-row-track" style={{ gridColumn: `2 / span ${termDays.length}`, gridTemplateColumns: termColTemplate }}>
+                    {termDays.map((day, dayIdx) => (
+                      <div
+                        key={`empty-${day.iso}`}
+                        className={`scheduler-term-row-cell${day.isWeekend ? " is-weekend" : ""}${day.isMonday ? " is-week-start" : ""}`}
+                        style={{ gridColumn: dayIdx + 1 }}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="scheduler-term-empty">
+            Add term dates in Settings to use the term timeline.
+          </div>
+        )
       ) : (
-        <div className="scheduler-cal-scroll">
-          <div className="scheduler-cal-grid" style={{ gridTemplateColumns: viewMode === "day" ? "66px minmax(0, 1fr)" : undefined }}>
+        <div ref={scrollRef} className="scheduler-cal-scroll">
+          <div className="scheduler-cal-grid" style={calendarGridStyle}>
             <div className="scheduler-col-header" style={{ borderRight: "1px solid var(--border)" }} />
 
             {weekDays.map((day) => (
-              <div key={day.iso} className={`scheduler-col-header${day.iso === todayISO ? " today today-col-outline-start" : ""}`}>
+              <div
+                key={day.iso}
+                className={`scheduler-col-header${day.iso === todayISO ? " today today-col-outline-start" : ""}${allDayColumnColors[day.iso] ? " scheduler-all-day-col" : ""}`}
+                style={allDayColumnColors[day.iso] ? { background: `color-mix(in srgb, ${allDayColumnColors[day.iso]} 10%, var(--surface))` } : undefined}
+              >
                 <div className="scheduler-col-header-day">{day.label}</div>
                 <div className="scheduler-col-header-date">{day.dayNum}</div>
               </div>
             ))}
 
+            <div className="scheduler-all-day-label">All day</div>
+            {weekDays.map((day) => (
+              <div
+                key={`all-day-${day.iso}`}
+                className={`scheduler-all-day-slot${day.iso === todayISO ? " today-col-outline" : ""}${allDayColumnColors[day.iso] ? " scheduler-all-day-col" : ""}`}
+                style={allDayColumnColors[day.iso] ? { background: `color-mix(in srgb, ${allDayColumnColors[day.iso]} 10%, var(--surface))` } : undefined}
+              >
+                {(allDayEventsByDate[day.iso] ?? []).map((evt) => {
+                  const color = eventColor(evt);
+                  return (
+                    <button
+                      key={evt.id}
+                      type="button"
+                      className="scheduler-all-day-event"
+                      style={{
+                        background: `color-mix(in srgb, ${color} 16%, var(--field-bg))`,
+                        borderLeft: `3px solid ${color}`,
+                      }}
+                      onClick={() => onEventClick(evt)}
+                    >
+                      <ScheduleEventIcon subject={evt.subject} eventType={evt.eventType} eventCategory={evt.eventCategory} size={11} />
+                      <span>{evt.title}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+
             {SLOTS.map((slot, slotIdx) => (
               <div key={`row-${slot}`} style={{ display: "contents" }}>
-                <div className="scheduler-time-label">{slot.endsWith(":00") ? slot : ""}</div>
+                <div className="scheduler-time-label">
+                  {slot.endsWith(":00") ? slot : ""}
+                </div>
 
                 {weekDays.map((day, dayIdx) => {
                   const key = `${dayIdx}-${slotIdx}`;
                   const slotEvents = eventsBySlot[key] ?? [];
                   return (
                     <div
+                      ref={
+                        slot === `${String(DEFAULT_VISIBLE_START_HOUR).padStart(2, "0")}:00` && dayIdx === 0
+                          ? startSlotMarkerRef
+                          : undefined
+                      }
                       key={`${day.iso}-${slot}`}
-                      className={`scheduler-slot${dragOverSlot === `${dayIdx}-${slotIdx}` ? " drag-over" : ""}${day.iso === todayISO ? " today-col-outline" : ""}${day.iso === todayISO && slotIdx === SLOT_COUNT - 1 ? " today-col-outline-end" : ""}`}
+                      className={`scheduler-slot${dragOverSlot === `${dayIdx}-${slotIdx}` ? " drag-over" : ""}${day.iso === todayISO ? " today-col-outline" : ""}${day.iso === todayISO && slotIdx === SLOT_COUNT - 1 ? " today-col-outline-end" : ""}${allDayColumnColors[day.iso] ? " scheduler-all-day-col" : ""}`}
+                      style={{
+                        minHeight: `${SLOT_HEIGHT_PX}px`,
+                        ...(allDayColumnColors[day.iso]
+                          ? { background: `color-mix(in srgb, ${allDayColumnColors[day.iso]} 8%, var(--surface))` }
+                          : {}),
+                      }}
                       onClick={() => {
                         if (slotEvents.length === 0) {
                           onEmptySlotClick?.(day.iso, slot);
@@ -382,7 +741,7 @@ export default function WeekCalendar({
                         const isPersonal = isPersonalEvent(evt);
                         const isConflict = conflictIds.has(evt.id);
                         const isHighTask = isTask && String(evt.title || "").toLowerCase().startsWith("high priority:");
-                        const color = isImported ? "#2563eb" : isTask ? (isHighTask ? "#ef4444" : "#4169e1") : isPersonal ? "#10b981" : subjectColor(evt.subject);
+                        const color = isTask ? (isHighTask ? "#ef4444" : "#4169e1") : eventColor(evt);
                         const spanSlots = durationToSlots(evt.startTime, evt.endTime);
 
                         return (
@@ -391,7 +750,7 @@ export default function WeekCalendar({
                             className={`scheduler-event${isDoneTask ? " is-done-task" : ""}`}
                             draggable={!isImported}
                             style={{
-                              height: `calc(${spanSlots * 34}px - 2px)`,
+                              height: `calc(${spanSlots * SLOT_HEIGHT_PX}px - 2px)`,
                               background: `color-mix(in srgb, ${color} 20%, var(--surface))`,
                               borderLeft: `3px solid ${color}`,
                               color: "var(--text)",

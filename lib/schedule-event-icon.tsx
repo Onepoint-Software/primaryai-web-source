@@ -17,6 +17,14 @@ function isImportedCalendarEvent(eventType?: string, eventCategory?: string) {
   return eventType === "custom" && (category === "outlook_import" || category === "google_import");
 }
 
+function isBankHolidayEvent(eventType?: string, eventCategory?: string, subject?: string) {
+  return (
+    eventType === "custom" &&
+    (String(eventCategory || "").toLowerCase() === "bank_holiday" ||
+      String(subject || "").toLowerCase() === "bank holiday")
+  );
+}
+
 function importedProvider(eventType?: string, eventCategory?: string) {
   const category = String(eventCategory || "").toLowerCase();
   if (eventType !== "custom") return "";
@@ -58,6 +66,7 @@ export function ScheduleEventIcon({
 }: ScheduleIconProps) {
   const personal = isPersonalEvent(eventType, eventCategory || undefined, subject);
   const imported = isImportedCalendarEvent(eventType, eventCategory || undefined);
+  const bankHoliday = isBankHolidayEvent(eventType, eventCategory || undefined, subject);
   const provider = importedProvider(eventType, eventCategory || undefined);
   const key = subjectKey(subject);
 
@@ -72,6 +81,8 @@ export function ScheduleEventIcon({
         ? "#ea4335"
         : provider === "outlook"
           ? "#2563eb"
+          : bankHoliday
+            ? "#d4a017"
           : personal
             ? "#10b981"
             : "currentColor",
@@ -105,6 +116,10 @@ export function ScheduleEventIcon({
             <path d="M21.35 11.1h-9.18v2.96h5.27c-.23 1.52-1.82 4.45-5.27 4.45-3.17 0-5.75-2.63-5.75-5.87s2.58-5.87 5.75-5.87c1.8 0 3.01.77 3.7 1.43" />
             <path d="M17.44 6.2 20.4 3.4" />
             <path d="M20.4 6.2V3.4h-2.8" />
+          </>
+        ) : bankHoliday ? (
+          <>
+            <path d="M12 3 13.8 8.2 19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z" />
           </>
         ) : personal ? (
           <>

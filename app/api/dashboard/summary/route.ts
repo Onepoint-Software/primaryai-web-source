@@ -136,6 +136,6 @@ export async function GET() {
       tasks,
       activeTerm,
     },
-    { headers: { "Cache-Control": "private, max-age=20, stale-while-revalidate=60" } },
+    { headers: { "Cache-Control": "no-store, private" } },
   );
 }

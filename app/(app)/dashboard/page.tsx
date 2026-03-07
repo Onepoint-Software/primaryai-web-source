@@ -5,24 +5,8 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { subjectColor } from "@/lib/subjectColor";
 import { ScheduleEventIcon } from "@/lib/schedule-event-icon";
+import { TermCountdownRing } from "@/components/dashboard/TermCountdownRing";
 
-function useCountUp(target: number, duration = 900): number {
-  const [value, setValue] = useState(0);
-  useEffect(() => {
-    if (target === 0) { setValue(0); return; }
-    const start = performance.now();
-    let raf: number;
-    function step(now: number) {
-      const progress = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setValue(Math.round(eased * target));
-      if (progress < 1) raf = requestAnimationFrame(step);
-    }
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [target, duration]);
-  return value;
-}
 
 const SchedulerDrawer = dynamic(() => import("@/components/dashboard/SchedulerDrawer"), {
   ssr: false,
@@ -94,6 +78,61 @@ type DashboardSummaryPayload = {
   } | null;
 };
 
+type DashboardBootStep = {
+  id: "settings" | "lessons" | "schedule" | "tasks";
+  label: string;
+  status: "pending" | "active" | "done";
+};
+
+function HouseDrawSVG() {
+  return (
+    <svg
+      className="page-loader-house"
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeMiterlimit="10"
+      shapeRendering="geometricPrecision"
+      aria-hidden="true"
+    >
+      <path className="pl-stroke pl-s1" pathLength="1" d="M2.5,7.5 L11.5,3.1 c0.3,-0.15, 0.7,-0.15, 1,0 L21.5,7.5" />
+      <path className="pl-stroke pl-s2" pathLength="1" d="M19.5,12 v6.5 c0,1.1, -0.9,2, -2,2 h-11 c-1.1,0, -2,-0.9, -2,-2 V12" />
+      <path className="pl-stroke pl-s3" pathLength="1" d="M19.5,12 C17.5,10.2, 14.5,10.2, 12,12" />
+      <path className="pl-stroke pl-s4" pathLength="1" d="M12,12.2 v8.1" />
+      <path className="pl-stroke pl-s5" pathLength="1" d="M12,12 C9.5,10.2, 6.5,10.2, 4.5,12" />
+    </svg>
+  );
+}
+
+function DashboardBootSplash({ steps }: { steps: DashboardBootStep[] }) {
+  const activeStep = steps.find((step) => step.status === "active");
+  return (
+    <main className="page-wrap">
+      <div className="page-loader">
+        <div className="page-loader-inner dashboard-boot-inner">
+          <HouseDrawSVG />
+          <div className="page-loader-wordmark">
+            Primary<span className="page-loader-ai">AI</span>
+          </div>
+          <div className="dashboard-boot-status" role="status" aria-live="polite">
+            {activeStep ? activeStep.label : "Preparing dashboard"}
+          </div>
+          <div className="dashboard-boot-progress">
+            {steps.map((step) => (
+              <div key={step.id} className={`dashboard-boot-step is-${step.status}`}>
+                <span className="dashboard-boot-step-dot" />
+                <span>{step.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+
 function isImportedCalendarScheduleEvent(event: Pick<ScheduleEvent, "event_type" | "event_category">) {
   const category = String(event.event_category || "").toLowerCase();
   return event.event_type === "custom" && (category === "outlook_import" || category === "google_import");
@@ -110,6 +149,19 @@ function scheduleEventAccentColor(event: Pick<ScheduleEvent, "event_type" | "eve
   return subjectColor(event.subject);
 }
 
+function isTaskScheduleEvent(event: Pick<ScheduleEvent, "event_type" | "event_category">) {
+  const category = String(event.event_category || "").toLowerCase();
+  return event.event_type === "custom" && category.startsWith("task");
+}
+
+function isLessonSubjectActivityEvent(event: Pick<ScheduleEvent, "event_type" | "event_category" | "subject">) {
+  if (event.event_type !== "lesson_pack") return false;
+  if (isImportedCalendarScheduleEvent(event)) return false;
+  if (isPersonalScheduleEvent(event)) return false;
+  if (isTaskScheduleEvent(event)) return false;
+  return true;
+}
+
 function formatShortUkDate(iso: string) {
   const [year, month, day] = String(iso).split("-").map(Number);
   if (!year || !month || !day) return iso;
@@ -120,65 +172,6 @@ function formatShortUkDate(iso: string) {
 }
 
 const DASHBOARD_CACHE_KEY = "pa_dashboard_summary_v2";
-const DASHBOARD_CACHE_TTL_MS = 30_000;
-
-function getClientSessionEmail(): string {
-  if (typeof document === "undefined") return "";
-  const match = document.cookie.match(/(?:^|;\s*)pa_session=([^;]+)/);
-  if (!match?.[1]) return "";
-
-  try {
-    const decoded = decodeURIComponent(match[1]);
-    const parsed = JSON.parse(decoded);
-    return typeof parsed?.email === "string" ? parsed.email : "";
-  } catch {
-    return "";
-  }
-}
-
-function getClientSessionIdentity(): { userId: string; email: string } {
-  if (typeof document === "undefined") return { userId: "", email: "" };
-
-  const legacyEmail = getClientSessionEmail();
-  const cookies = document.cookie
-    .split(";")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-  const tokenCookie = cookies.find((entry) => entry.includes("-auth-token="));
-  if (!tokenCookie) {
-    return { userId: "", email: legacyEmail };
-  }
-
-  const rawValue = tokenCookie.slice(tokenCookie.indexOf("=") + 1);
-  try {
-    const decoded = decodeURIComponent(rawValue);
-    const parsed = JSON.parse(decoded);
-    const accessToken =
-      Array.isArray(parsed) && typeof parsed[0] === "string"
-        ? parsed[0]
-        : typeof parsed?.access_token === "string"
-          ? parsed.access_token
-          : "";
-    if (!accessToken) {
-      return { userId: "", email: legacyEmail };
-    }
-
-    const payloadPart = accessToken.split(".")[1];
-    if (!payloadPart) {
-      return { userId: "", email: legacyEmail };
-    }
-
-    const base64 = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
-    const json = atob(base64);
-    const payload = JSON.parse(json);
-    return {
-      userId: typeof payload?.sub === "string" ? payload.sub : "",
-      email: typeof payload?.email === "string" ? payload.email : legacyEmail,
-    };
-  } catch {
-    return { userId: "", email: legacyEmail };
-  }
-}
 
 function getMondayISO(d = new Date()) {
   const day = d.getDay();
@@ -578,6 +571,10 @@ function ActivityBySubjectCard({
   loading: boolean;
   weekStart: Date;
 }) {
+  const lessonSubjectEvents = useMemo(
+    () => scheduleEvents.filter((event) => isLessonSubjectActivityEvent(event)),
+    [scheduleEvents],
+  );
   const weekDays = Array.from({ length: 5 }, (_, i) => {
     const d = new Date(weekStart);
     d.setDate(weekStart.getDate() + i);
@@ -587,7 +584,7 @@ function ActivityBySubjectCard({
   const weekIsoSet = new Set(weekDays.map((day) => day.toISOString().split("T")[0]));
   const daySubjectCounts = weekDays.map((day) => {
     const iso = day.toISOString().split("T")[0];
-    const bySubject = scheduleEvents.reduce((acc, evt) => {
+    const bySubject = lessonSubjectEvents.reduce((acc, evt) => {
       if (String(evt.scheduled_date || "") !== iso) return acc;
       const subject = String(evt.subject || "Other");
       acc[subject] = (acc[subject] || 0) + 1;
@@ -596,7 +593,7 @@ function ActivityBySubjectCard({
     const totalForDay = Object.values(bySubject).reduce((sum, value) => sum + value, 0);
     return { iso, bySubject, totalForDay };
   });
-  const weeklySubjectCounts = scheduleEvents.reduce((acc, evt) => {
+  const weeklySubjectCounts = lessonSubjectEvents.reduce((acc, evt) => {
     const iso = String(evt.scheduled_date || "");
     if (!weekIsoSet.has(iso)) return acc;
     const subject = String(evt.subject || "Other");
@@ -745,128 +742,165 @@ function ActivityBySubjectCard({
   );
 }
 
-function UpNextHeroTile({
+function formatUpNextTileDate(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  const todayIso = toISODate(new Date());
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (iso === todayIso) return "Today";
+  if (iso === toISODate(tomorrow)) return "Tomorrow";
+  return date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+}
+
+function UpNextCarouselSection({
+  heading,
   events,
   loading,
   index,
   onPrevious,
   onNext,
-  label,
   emptyText,
   loadingText,
 }: {
+  heading: string;
   events: ScheduleEvent[];
   loading: boolean;
   index: number;
   onPrevious: () => void;
   onNext: () => void;
-  label: string;
   emptyText: string;
   loadingText: string;
 }) {
   const event = events[index] ?? null;
 
-  function formatTileDate(iso: string) {
-    const [y, m, d] = iso.split("-").map(Number);
-    const date = new Date(y, m - 1, d);
-    const todayIso = toISODate(new Date());
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    if (iso === todayIso) return "Today";
-    if (iso === toISODate(tomorrow)) return "Tomorrow";
-    return date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-  }
+  const accent = event ? scheduleEventAccentColor(event) : undefined;
 
   return (
-    <div className="dashboard-hero-stat">
-      <div className="dashboard-hero-badge-wrap">
-        <div className="dashboard-hero-icon-badge">
-          <svg className="dashboard-hero-stat-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" fill="currentColor" opacity="0.3" />
-            <polyline points="12 6 12 12 16 14" stroke="currentColor" fill="none" />
-          </svg>
-        </div>
+    <div className="dashboard-upnext-section">
+      <div className="dashboard-upnext-section-head">
+        <span className="dashboard-upnext-section-label">{heading}</span>
+        {!loading && events.length > 1 && (
+          <div className="dashboard-upnext-arrows">
+            <button
+              type="button"
+              className="dashboard-upnext-arrow"
+              aria-label={`Previous ${heading.toLowerCase()}`}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onPrevious(); }}
+              disabled={index === 0}
+            >‹</button>
+            <span className="dashboard-upnext-position">{index + 1} / {events.length}</span>
+            <button
+              type="button"
+              className="dashboard-upnext-arrow"
+              aria-label={`Next ${heading.toLowerCase()}`}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onNext(); }}
+              disabled={index >= events.length - 1}
+            >›</button>
+          </div>
+        )}
       </div>
       {!loading && event ? (
-        <div className="dashboard-upnext-wrap">
-          <div className="dashboard-upnext-controls">
-            <span className="dashboard-hero-sub">{label}</span>
-          </div>
-          <div className="dashboard-upnext-track">
-            <div
-              key={event.id}
-              className="dashboard-upnext-card"
-              role="button"
-              tabIndex={0}
-              style={{
-                background: `color-mix(in srgb, ${scheduleEventAccentColor(event)} 10%, var(--field-bg))`,
-                borderLeft: `3px solid ${scheduleEventAccentColor(event)}`,
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                window.dispatchEvent(new CustomEvent("pa:schedule-open-event", { detail: event }));
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  window.dispatchEvent(new CustomEvent("pa:schedule-open-event", { detail: event }));
-                }
-              }}
-            >
-              <p className="dashboard-upnext-title">
-                <ScheduleEventIcon
-                  subject={event.subject}
-                  eventType={event.event_type}
-                  eventCategory={event.event_category}
-                  size={12}
-                />
-                <span>{event.title}</span>
-              </p>
-              <p className="dashboard-upnext-meta">
-                {formatTileDate(event.scheduled_date)} · {String(event.start_time || "").slice(0, 5)}–{String(event.end_time || "").slice(0, 5)}
-              </p>
-            </div>
-          </div>
-          <div className="dashboard-upnext-controls dashboard-upnext-controls-bottom">
-            <span className="dashboard-upnext-position">
-              {index + 1} / {events.length}
-            </span>
-            <div className="schedule-carousel-controls">
-              <button
-                type="button"
-                className="schedule-carousel-arrow"
-                aria-label={`Previous ${label.toLowerCase()}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onPrevious();
-                }}
-                disabled={index === 0}
-              >
-                ‹
-              </button>
-              <button
-                type="button"
-                className="schedule-carousel-arrow"
-                aria-label={`Next ${label.toLowerCase()}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onNext();
-                }}
-                disabled={index >= events.length - 1}
-              >
-                ›
-              </button>
-            </div>
-          </div>
+        <div
+          key={event.id}
+          className="dashboard-upnext-card"
+          role="button"
+          tabIndex={0}
+          style={{
+            background: `color-mix(in srgb, ${accent} 9%, var(--field-bg))`,
+            borderLeft: `3px solid ${accent}`,
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            window.dispatchEvent(new CustomEvent("pa:schedule-open-event", { detail: event }));
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              window.dispatchEvent(new CustomEvent("pa:schedule-open-event", { detail: event }));
+            }
+          }}
+        >
+          <p className="dashboard-upnext-when" style={{ color: accent }}>
+            {formatUpNextTileDate(event.scheduled_date)}
+            {event.start_time && (
+              <span className="dashboard-upnext-when-time">
+                {String(event.start_time).slice(0, 5)}–{String(event.end_time || "").slice(0, 5)}
+              </span>
+            )}
+          </p>
+          <p className="dashboard-upnext-title">
+            <ScheduleEventIcon
+              subject={event.subject}
+              eventType={event.event_type}
+              eventCategory={event.event_category}
+              size={13}
+            />
+            <span>{event.title}</span>
+          </p>
         </div>
       ) : !loading ? (
         <span className="dashboard-hero-sub">{emptyText}</span>
       ) : (
         <span className="dashboard-hero-sub">{loadingText}</span>
       )}
+    </div>
+  );
+}
+
+function CombinedUpNextHeroTile({
+  personalEvents,
+  schedulerEvents,
+  loading,
+  personalIndex,
+  schedulerIndex,
+  onPersonalPrevious,
+  onPersonalNext,
+  onSchedulerPrevious,
+  onSchedulerNext,
+}: {
+  personalEvents: ScheduleEvent[];
+  schedulerEvents: ScheduleEvent[];
+  loading: boolean;
+  personalIndex: number;
+  schedulerIndex: number;
+  onPersonalPrevious: () => void;
+  onPersonalNext: () => void;
+  onSchedulerPrevious: () => void;
+  onSchedulerNext: () => void;
+}) {
+  return (
+    <div className="dashboard-hero-stat dashboard-hero-stat-combined-upnext">
+      <div className="dashboard-upnext-tile-header">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ color: "var(--accent)", opacity: 0.85, flexShrink: 0 }}>
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+        <span className="dashboard-hero-label" style={{ margin: 0 }}>Up Next</span>
+      </div>
+      <div className="dashboard-combined-upnext-body">
+        <UpNextCarouselSection
+          heading="Personal"
+          events={personalEvents}
+          loading={loading}
+          index={personalIndex}
+          onPrevious={onPersonalPrevious}
+          onNext={onPersonalNext}
+          emptyText="no upcoming personal events"
+          loadingText="loading personal events…"
+        />
+        <UpNextCarouselSection
+          heading="Scheduler"
+          events={schedulerEvents}
+          loading={loading}
+          index={schedulerIndex}
+          onPrevious={onSchedulerPrevious}
+          onNext={onSchedulerNext}
+          emptyText="no upcoming events"
+          loadingText="loading next event…"
+        />
+      </div>
     </div>
   );
 }
@@ -925,56 +959,43 @@ function PersonalTasksCard({
   onTasksChange: (tasks: PersonalTask[]) => void;
   onScheduleRefresh: () => void;
 }) {
-  const [title, setTitle] = useState("");
-  const [dueDate, setDueDate] = useState(() => toISODate(new Date()));
-  const [dueTime, setDueTime] = useState("16:00");
-  const [importance, setImportance] = useState<"low" | "high">("low");
   const [saving, setSaving] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState<{ title: string; due_date: string; due_time: string; importance: "low" | "high"; completed: boolean } | null>(null);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [taskDraft, setTaskDraft] = useState({
+    title: "",
+    due_date: toISODate(new Date()),
+    due_time: "16:00",
+    importance: "low" as "low" | "high",
+    completed: false,
+  });
+  const [editingTask, setEditingTask] = useState<PersonalTask | null>(null);
   const [error, setError] = useState("");
 
   async function refreshTasks() {
-    const res = await fetch("/api/tasks?includeCompleted=true");
+    const res = await fetch("/api/tasks?includeCompleted=true", { cache: "no-store" });
     const data = await res.json().catch(() => ({}));
     if (res.ok && Array.isArray(data?.tasks)) {
       onTasksChange(data.tasks);
     }
   }
 
-  async function createTask() {
-    const taskTitle = title.trim();
-    if (!taskTitle || !dueDate) {
-      setError("Add a title and due date.");
-      return;
-    }
-    setSaving(true);
+  function openCreateModal() {
+    setComposerOpen(true);
+    setEditingTask(null);
+    setTaskDraft({
+      title: "",
+      due_date: toISODate(new Date()),
+      due_time: "16:00",
+      importance: "low",
+      completed: false,
+    });
     setError("");
-    try {
-      const res = await fetch("/api/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: taskTitle, dueDate, dueTime, importance }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error || "Could not create task");
-      }
-      setTitle("");
-      setDueTime("16:00");
-      setImportance("low");
-      await refreshTasks();
-      onScheduleRefresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create task");
-    } finally {
-      setSaving(false);
-    }
   }
 
-  function beginEdit(task: PersonalTask) {
-    setEditingId(task.id);
-    setEditDraft({
+  function openEditModal(task: PersonalTask) {
+    setComposerOpen(false);
+    setEditingTask(task);
+    setTaskDraft({
       title: task.title,
       due_date: task.due_date,
       due_time: task.due_time ? String(task.due_time).slice(0, 5) : "16:00",
@@ -984,32 +1005,42 @@ function PersonalTasksCard({
     setError("");
   }
 
-  async function saveEdit() {
-    if (!editingId || !editDraft) return;
+  function closeTaskModal() {
+    if (saving) return;
+    setComposerOpen(false);
+    setEditingTask(null);
+    setError("");
+  }
+
+  async function saveTask() {
+    const taskTitle = taskDraft.title.trim();
+    if (!taskTitle || !taskDraft.due_date) {
+      setError("Add a title and due date.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
-      const res = await fetch(`/api/tasks/${editingId}`, {
-        method: "PATCH",
+      const res = await fetch(editingTask ? `/api/tasks/${editingTask.id}` : "/api/tasks", {
+        method: editingTask ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: editDraft.title,
-          dueDate: editDraft.due_date,
-          dueTime: editDraft.due_time,
-          importance: editDraft.importance,
-          completed: editDraft.completed,
+          title: taskTitle,
+          dueDate: taskDraft.due_date,
+          dueTime: taskDraft.due_time,
+          importance: taskDraft.importance,
+          completed: taskDraft.completed,
         }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error || "Could not update task");
+        throw new Error(body?.error || (editingTask ? "Could not update task" : "Could not create task"));
       }
-      setEditingId(null);
-      setEditDraft(null);
+      closeTaskModal();
       await refreshTasks();
       onScheduleRefresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not update task");
+      setError(err instanceof Error ? err.message : (editingTask ? "Could not update task" : "Could not create task"));
     } finally {
       setSaving(false);
     }
@@ -1057,8 +1088,10 @@ function PersonalTasksCard({
 
   const sortedTasks = [...tasks].sort((a, b) => {
     if (a.completed !== b.completed) return a.completed ? 1 : -1;
-    return a.due_date.localeCompare(b.due_date);
+    if (a.due_date !== b.due_date) return a.due_date.localeCompare(b.due_date);
+    return String(a.due_time || "23:59").localeCompare(String(b.due_time || "23:59"));
   });
+  const visibleTasks = sortedTasks.slice(0, 6);
 
   return (
     <div className="personal-tasks-card">
@@ -1066,35 +1099,19 @@ function PersonalTasksCard({
         <p className="personal-tasks-eyebrow">
           Personal To-Do
         </p>
-        <span className="personal-tasks-count">{sortedTasks.filter((t) => !t.completed).length} open</span>
+        <div className="personal-tasks-header-actions">
+          <span className="personal-tasks-count">{sortedTasks.filter((t) => !t.completed).length} open</span>
+          <button className="button personal-task-add-btn" onClick={openCreateModal}>
+            New task
+          </button>
+        </div>
       </div>
-
-      <div className="personal-tasks-form">
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Add a task"
-          className="field personal-task-input"
-        />
-        <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="field personal-task-input" />
-        <input type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} className="field personal-task-input" />
-        <select value={importance} onChange={(e) => setImportance(e.target.value === "high" ? "high" : "low")} className="field personal-task-input">
-          <option value="low">Low</option>
-          <option value="high">High</option>
-        </select>
-        <button className="button personal-task-add-btn" onClick={() => { void createTask(); }} disabled={saving}>
-          Add
-        </button>
-      </div>
-
-      {error ? <p className="personal-tasks-error">{error}</p> : null}
 
       <div className="personal-tasks-list">
         {sortedTasks.length === 0 ? (
           <p className="personal-tasks-empty">No tasks yet.</p>
         ) : (
-          sortedTasks.map((task) => {
-            const isEditing = editingId === task.id && editDraft;
+          visibleTasks.map((task) => {
             const now = new Date();
             const nowIso = toISODate(now);
             const nowTime = now.toTimeString().slice(0, 5);
@@ -1109,66 +1126,134 @@ function PersonalTasksCard({
               month: "short",
             });
             return (
-              <div key={task.id} className={`personal-task-row${task.completed ? " is-completed" : ""}${isOverdue ? " is-overdue" : ""}`}>
-                {isEditing ? (
-                  <div className="personal-task-edit-grid">
-                    <input
-                      value={editDraft.title}
-                      onChange={(e) => setEditDraft({ ...editDraft, title: e.target.value })}
-                      className="field personal-task-input"
-                    />
-                    <input
-                      type="date"
-                      value={editDraft.due_date}
-                      onChange={(e) => setEditDraft({ ...editDraft, due_date: e.target.value })}
-                      className="field personal-task-input"
-                    />
-                    <input
-                      type="time"
-                      value={editDraft.due_time}
-                      onChange={(e) => setEditDraft({ ...editDraft, due_time: e.target.value })}
-                      className="field personal-task-input"
-                    />
-                    <select
-                      value={editDraft.importance}
-                      onChange={(e) => setEditDraft({ ...editDraft, importance: e.target.value === "high" ? "high" : "low" })}
-                      className="field personal-task-input"
-                    >
-                      <option value="low">Low</option>
-                      <option value="high">High</option>
-                    </select>
-                    <button className="button" onClick={() => { void saveEdit(); }} disabled={saving}>Save</button>
-                    <button className="button secondary" onClick={() => { setEditingId(null); setEditDraft(null); }} disabled={saving}>Cancel</button>
+              <button
+                key={task.id}
+                type="button"
+                className={`personal-task-row${task.completed ? " is-completed" : ""}${isOverdue ? " is-overdue" : ""}`}
+                onClick={() => openEditModal(task)}
+              >
+                <div className="personal-task-row-main">
+                  <span className={`personal-task-status-dot${task.completed ? " is-completed" : ""}${isOverdue ? " is-overdue" : ""}`} />
+                  <div style={{ minWidth: 0 }}>
+                    <p className="personal-task-title">{task.title}</p>
+                    <p className="personal-task-meta">
+                      Due {dueLabel}{task.due_time ? ` at ${String(task.due_time).slice(0, 5)}` : ""} · <span className={`personal-task-priority ${task.importance === "high" ? "is-high" : "is-low"}`}>{task.importance === "high" ? "High" : "Low"} importance</span>
+                    </p>
                   </div>
-                ) : (
-                  <div className="personal-task-grid">
-                    <input type="checkbox" checked={task.completed} onChange={() => { void toggleCompleted(task); }} />
-                    <div style={{ minWidth: 0 }}>
-                      <p className="personal-task-title">
-                        {task.title}
-                      </p>
-                      <p className="personal-task-meta">
-                        Due {dueLabel}{task.due_time ? ` at ${String(task.due_time).slice(0, 5)}` : ""} · <span className={`personal-task-priority ${task.importance === "high" ? "is-high" : "is-low"}`}>{task.importance === "high" ? "High" : "Low"} importance</span>
-                      </p>
-                    </div>
-                    <div className="personal-task-actions">
-                      <button
-                        className="button secondary"
-                        onClick={() => { void toggleCompleted(task); }}
-                        disabled={saving}
-                      >
-                        {task.completed ? "Undo" : "Done"}
-                      </button>
-                      <button className="button secondary" onClick={() => beginEdit(task)} disabled={saving}>Edit</button>
-                      <button className="button secondary" onClick={() => { void deleteTask(task); }} disabled={saving}>Delete</button>
-                    </div>
-                  </div>
-                )}
-              </div>
+                </div>
+                <span className="personal-task-open-indicator">Open</span>
+              </button>
             );
           })
         )}
+        {sortedTasks.length > visibleTasks.length ? (
+          <p className="personal-tasks-more">
+            Showing {visibleTasks.length} of {sortedTasks.length} tasks
+          </p>
+        ) : null}
       </div>
+
+      {(composerOpen || editingTask) ? (
+        <div className="scheduler-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) closeTaskModal(); }}>
+          <div className="scheduler-modal personal-task-modal">
+            <button
+              type="button"
+              className="scheduler-modal-x"
+              aria-label="Close"
+              onClick={closeTaskModal}
+            >
+              ×
+            </button>
+            <div>
+              <span className="scheduler-modal-subject-chip">
+                {editingTask ? "Update task" : "Create task"}
+              </span>
+              <h2 className="scheduler-modal-title">
+                {editingTask ? taskDraft.title || "Task details" : "New personal task"}
+              </h2>
+            </div>
+            <div className="scheduler-modal-fields">
+              <label className="scheduler-modal-field" style={{ gridColumn: "1 / -1" }}>
+                <span className="scheduler-modal-label">Title</span>
+                <input
+                  value={taskDraft.title}
+                  onChange={(e) => setTaskDraft((prev) => ({ ...prev, title: e.target.value }))}
+                  className="scheduler-modal-input"
+                  placeholder="Task title"
+                />
+              </label>
+              <label className="scheduler-modal-field">
+                <span className="scheduler-modal-label">Due date</span>
+                <input
+                  type="date"
+                  value={taskDraft.due_date}
+                  onChange={(e) => setTaskDraft((prev) => ({ ...prev, due_date: e.target.value }))}
+                  className="scheduler-modal-input"
+                />
+              </label>
+              <label className="scheduler-modal-field">
+                <span className="scheduler-modal-label">Due time</span>
+                <input
+                  type="time"
+                  value={taskDraft.due_time}
+                  onChange={(e) => setTaskDraft((prev) => ({ ...prev, due_time: e.target.value }))}
+                  className="scheduler-modal-input"
+                />
+              </label>
+              <label className="scheduler-modal-field">
+                <span className="scheduler-modal-label">Priority</span>
+                <select
+                  value={taskDraft.importance}
+                  onChange={(e) => setTaskDraft((prev) => ({ ...prev, importance: e.target.value === "high" ? "high" : "low" }))}
+                  className="scheduler-modal-input"
+                >
+                  <option value="low">Low</option>
+                  <option value="high">High</option>
+                </select>
+              </label>
+              {editingTask ? (
+                <label className="scheduler-modal-field" style={{ justifyContent: "flex-end" }}>
+                  <span className="scheduler-modal-label">Completed</span>
+                  <input
+                    type="checkbox"
+                    checked={taskDraft.completed}
+                    onChange={(e) => setTaskDraft((prev) => ({ ...prev, completed: e.target.checked }))}
+                    style={{ accentColor: "var(--accent)" }}
+                  />
+                </label>
+              ) : null}
+            </div>
+            {error ? <p className="scheduler-modal-error">{error}</p> : null}
+            <div className="scheduler-modal-actions">
+              {editingTask ? (
+                <button
+                  className="scheduler-modal-cancel"
+                  onClick={() => { void deleteTask(editingTask); closeTaskModal(); }}
+                  disabled={saving}
+                >
+                  Delete
+                </button>
+              ) : (
+                <button className="scheduler-modal-cancel" onClick={closeTaskModal} disabled={saving}>
+                  Cancel
+                </button>
+              )}
+              {editingTask ? (
+                <button
+                  className="scheduler-modal-cancel"
+                  onClick={() => { void toggleCompleted(editingTask); closeTaskModal(); }}
+                  disabled={saving}
+                >
+                  {editingTask.completed ? "Mark open" : "Mark done"}
+                </button>
+              ) : null}
+              <button className="scheduler-modal-confirm" onClick={() => { void saveTask(); }} disabled={saving}>
+                {saving ? "Saving…" : editingTask ? "Save changes" : "Create task"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1187,67 +1272,56 @@ export default function DashboardPage() {
   const [tasks, setTasks] = useState<PersonalTask[]>([]);
   const [activeTerm, setActiveTerm] = useState<DashboardSummaryPayload["activeTerm"]>(null);
   const [loading, setLoading] = useState(true);
-  const [dashboardRefreshing, setDashboardRefreshing] = useState(true);
+  const [initialBootLoading, setInitialBootLoading] = useState(true);
+  const [bootSteps, setBootSteps] = useState<DashboardBootStep[]>([
+    { id: "settings", label: "Fetching settings", status: "pending" },
+    { id: "lessons", label: "Fetching lesson packs", status: "pending" },
+    { id: "schedule", label: "Fetching timetable", status: "pending" },
+    { id: "tasks", label: "Fetching tasks", status: "pending" },
+  ]);
   const [scheduleRefreshKey, setScheduleRefreshKey] = useState(0);
   const [personalUpNextIndex, setPersonalUpNextIndex] = useState(0);
   const [upNextIndex, setUpNextIndex] = useState(0);
+  const [schedulerViewMode, setSchedulerViewMode] = useState<"week" | "day" | "month" | "term">("week");
+
+  const updateBootStep = useCallback((id: DashboardBootStep["id"], status: DashboardBootStep["status"]) => {
+    setBootSteps((prev) => prev.map((step) => (step.id === id ? { ...step, status } : step)));
+  }, []);
 
   const refreshTasksFromApi = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await fetch("/api/tasks?includeCompleted=true", signal ? { signal } : undefined);
+      const res = await fetch("/api/tasks?includeCompleted=true", signal ? { signal, cache: "no-store" } : { cache: "no-store" });
       const data = await res.json().catch(() => ({}));
       if (!(signal?.aborted) && res.ok && Array.isArray(data?.tasks)) {
         setTasks(data.tasks);
+        return data.tasks as PersonalTask[];
       }
     } catch {
       // Keep existing task state if task refresh fails.
     }
+    return null;
   }, []);
 
   useEffect(() => {
-    let hydratedFromCache = false;
-    const cachedRaw = typeof window !== "undefined" ? sessionStorage.getItem(DASHBOARD_CACHE_KEY) : null;
-    if (cachedRaw) {
-      try {
-        const cached = JSON.parse(cachedRaw) as { ts?: number; data?: DashboardSummaryPayload };
-        const age = Date.now() - Number(cached?.ts || 0);
-        const cachedUserId = String(cached?.data?.userId ?? "");
-        const cachedEmail = String(cached?.data?.email ?? "");
-        const { userId: activeSessionUserId, email: activeSessionEmail } = getClientSessionIdentity();
-        const userMatches = Boolean(activeSessionUserId) && Boolean(cachedUserId) && activeSessionUserId === cachedUserId;
-        const emailMatches = Boolean(activeSessionEmail) && Boolean(cachedEmail) && activeSessionEmail === cachedEmail;
-        const canHydrateCache = Boolean(cached?.data) && (userMatches || emailMatches);
-
-        if (canHydrateCache && cached?.data) {
-          setItems(normaliseLibraryItems(cached.data.libraryItems));
-          setScheduleEvents(Array.isArray(cached.data.scheduleEvents) ? cached.data.scheduleEvents : []);
-          setUpNextScheduleEvents(Array.isArray(cached.data.upNextEvents) ? cached.data.upNextEvents : []);
-          setEmail(String(cached.data.email ?? ""));
-          setDisplayName(cached.data.profileSetup?.displayName ?? "");
-          setAvatarUrl(cached.data.profileSetup?.avatarUrl ?? "");
-          setTasks(Array.isArray(cached.data.tasks) ? cached.data.tasks : []);
-          setActiveTerm(cached.data.activeTerm ?? null);
-          hydratedFromCache = true;
-          setScheduleLoading(false);
-          setLoading(false);
-          if (age >= 0 && age < DASHBOARD_CACHE_TTL_MS) {
-            setDashboardRefreshing(false);
-            return;
-          }
-        } else {
-          sessionStorage.removeItem(DASHBOARD_CACHE_KEY);
-        }
-      } catch {
-        // Ignore malformed cache.
-      }
-    }
+    const controller = new AbortController();
+    setInitialBootLoading(true);
+    setBootSteps([
+      { id: "settings", label: "Fetching settings", status: "active" },
+      { id: "lessons", label: "Fetching lesson packs", status: "pending" },
+      { id: "schedule", label: "Fetching timetable", status: "pending" },
+      { id: "tasks", label: "Fetching tasks", status: "pending" },
+    ]);
 
     void (async () => {
       try {
-        const res = await fetch("/api/dashboard/summary");
+        const res = await fetch("/api/dashboard/summary", { cache: "no-store", signal: controller.signal });
         if (res.ok) {
           const data = (await res.json()) as DashboardSummaryPayload;
           setItems(normaliseLibraryItems(data?.libraryItems));
+          updateBootStep("settings", "done");
+          updateBootStep("lessons", "active");
+          updateBootStep("lessons", "done");
+          updateBootStep("schedule", "active");
           setScheduleEvents(Array.isArray(data?.scheduleEvents) ? data.scheduleEvents : []);
           setUpNextScheduleEvents(Array.isArray(data?.upNextEvents) ? data.upNextEvents : []);
           setEmail(String(data?.email ?? ""));
@@ -1255,21 +1329,26 @@ export default function DashboardPage() {
           setAvatarUrl(data?.profileSetup?.avatarUrl ?? "");
           setTasks(Array.isArray(data?.tasks) ? data.tasks : []);
           setActiveTerm(data?.activeTerm ?? null);
+          updateBootStep("schedule", "done");
+          updateBootStep("tasks", "active");
           if (typeof window !== "undefined") {
             sessionStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
           }
+          await refreshTasksFromApi(controller.signal);
+          if (!controller.signal.aborted) {
+            updateBootStep("tasks", "done");
+          }
         }
       } finally {
-        setScheduleLoading(false);
-        setLoading(false);
-        setDashboardRefreshing(false);
-        if (!hydratedFromCache) {
+        if (!controller.signal.aborted) {
           setScheduleLoading(false);
           setLoading(false);
+          setInitialBootLoading(false);
         }
       }
     })();
-  }, []);
+    return () => controller.abort();
+  }, [refreshTasksFromApi, updateBootStep]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1303,8 +1382,8 @@ export default function DashboardPage() {
         setScheduleLoading(true);
         try {
           const [weekRes, upNextRes] = await Promise.all([
-            fetch(`/api/schedule?weekStart=${selectedWeekIso}`, { signal: controller.signal }),
-            fetch(`/api/schedule?from=${todayIso}&to=${upNextRangeEndIso}`, { signal: controller.signal }),
+            fetch(`/api/schedule?weekStart=${selectedWeekIso}`, { signal: controller.signal, cache: "no-store" }),
+            fetch(`/api/schedule?from=${todayIso}&to=${upNextRangeEndIso}`, { signal: controller.signal, cache: "no-store" }),
           ]);
           const weekData = await weekRes.json().catch(() => ({}));
           const upNextData = await upNextRes.json().catch(() => ({}));
@@ -1341,7 +1420,6 @@ export default function DashboardPage() {
     .join("") || "PA";
 
   // Hero strip stats
-  const uniqueSubjects = useMemo(() => new Set(items.map((i) => i.subject)).size, [items]);
   const upNextEvents = useMemo(() => {
     const now = new Date();
     const nowDate = toISODate(now);
@@ -1367,8 +1445,6 @@ export default function DashboardPage() {
     () => upNextEvents.filter((event) => !isPersonalScheduleEvent(event)),
     [upNextEvents],
   );
-  const countPacks = useCountUp(loading ? 0 : items.length);
-  const countSubjects = useCountUp(loading ? 0 : uniqueSubjects);
 
   useEffect(() => {
     if (schedulerUpNextEvents.length === 0) {
@@ -1386,12 +1462,22 @@ export default function DashboardPage() {
     setPersonalUpNextIndex((current) => Math.min(current, personalUpNextEvents.length - 1));
   }, [personalUpNextEvents]);
 
-  // Tile 1: progress ring (cap at 20 packs)
-  const packRingCircumference = 2 * Math.PI * 20;
-  const packRingOffset = packRingCircumference * (1 - (loading ? 0 : Math.min(items.length / 20, 1)));
-
-  // Tile 2: unique subject list for color dots
-  const subjectDots = useMemo(() => Array.from(new Set(items.map((i) => i.subject))), [items]);
+  const termCountdown = useMemo(() => {
+    if (!activeTerm?.termStartDate || !activeTerm?.termEndDate) {
+      return { hasTerm: false, progress: 0, totalDays: 0, elapsedDays: 0 };
+    }
+    const [startYear, startMonth, startDay] = activeTerm.termStartDate.split("-").map(Number);
+    const [endYear, endMonth, endDay] = activeTerm.termEndDate.split("-").map(Number);
+    const start = new Date(startYear, (startMonth || 1) - 1, startDay || 1);
+    const end = new Date(endYear, (endMonth || 1) - 1, endDay || 1);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const totalDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / msPerDay) + 1);
+    const elapsedDays = Math.min(totalDays, Math.max(0, Math.round((today.getTime() - start.getTime()) / msPerDay) + 1));
+    const progress = Math.min(1, Math.max(0, elapsedDays / totalDays));
+    return { hasTerm: true, progress, totalDays, elapsedDays };
+  }, [activeTerm]);
 
   // Insight card computation
   const insightData = useMemo(() => {
@@ -1406,52 +1492,90 @@ export default function DashboardPage() {
     const ALL_SUBJECTS = ["Maths", "English", "Science", "History", "Geography", "Computing", "Music", "Art", "PE", "PSHE", "RE"];
     const missing = ALL_SUBJECTS.filter((s) => !covered.has(s));
     const topPct = topEntry ? Math.round((topEntry[1] / items.length) * 100) : 0;
-    return { topSubject: topEntry?.[0], topPct, missing, coveredCount: covered.size };
-  }, [items]);
+    const toMinutes = (time: string) => {
+      const [h, m] = String(time || "").split(":").map(Number);
+      return (h || 0) * 60 + (m || 0);
+    };
+    const monday = getMondayDate(new Date());
+    const friday = new Date(monday);
+    friday.setDate(friday.getDate() + 4);
+    const weekEvents = scheduleEvents.filter((event) => {
+      const [year, month, day] = String(event.scheduled_date || "").split("-").map(Number);
+      if (!year || !month || !day) return false;
+      const eventDate = new Date(year, month - 1, day);
+      eventDate.setHours(0, 0, 0, 0);
+      return eventDate >= monday && eventDate <= friday;
+    });
+    const scheduledHourEvents = weekEvents.filter(
+      (event) =>
+        !isImportedCalendarScheduleEvent(event) &&
+        !isTaskScheduleEvent(event) &&
+        !isPersonalScheduleEvent(event),
+    );
+    const clashEligibleEvents = scheduledHourEvents.filter(
+      (event) => !isImportedCalendarScheduleEvent(event) && !isTaskScheduleEvent(event),
+    );
+    const eventsByDay = new Map<string, ScheduleEvent[]>();
+    let totalScheduledMinutes = 0;
+    let clashCount = 0;
+
+    for (const event of scheduledHourEvents) {
+      const dayEvents = eventsByDay.get(event.scheduled_date) ?? [];
+      dayEvents.push(event);
+      eventsByDay.set(event.scheduled_date, dayEvents);
+      totalScheduledMinutes += Math.max(0, toMinutes(event.end_time) - toMinutes(event.start_time));
+    }
+
+    const clashEventsByDay = new Map<string, ScheduleEvent[]>();
+    for (const event of clashEligibleEvents) {
+      const dayEvents = clashEventsByDay.get(event.scheduled_date) ?? [];
+      dayEvents.push(event);
+      clashEventsByDay.set(event.scheduled_date, dayEvents);
+    }
+
+    for (const [, dayEvents] of clashEventsByDay) {
+      const sortedEvents = [...dayEvents].sort((a, b) => a.start_time.localeCompare(b.start_time));
+      let activeEnd = -1;
+      let clashWindowOpen = false;
+      for (const event of sortedEvents) {
+        const eventStart = toMinutes(event.start_time);
+        const eventEnd = toMinutes(event.end_time);
+        if (activeEnd >= 0 && eventStart < activeEnd) {
+          if (!clashWindowOpen) {
+            clashCount += 1;
+            clashWindowOpen = true;
+          }
+          activeEnd = Math.max(activeEnd, eventEnd);
+        } else {
+          activeEnd = eventEnd;
+          clashWindowOpen = false;
+        }
+      }
+    }
+
+    const weekdaysInView = 5;
+    const scheduledDayCount = eventsByDay.size;
+    const freeDayCount = Math.max(0, weekdaysInView - scheduledDayCount);
+    const totalHours = Math.round((totalScheduledMinutes / 60) * 10) / 10;
+
+    return {
+      topSubject: topEntry?.[0],
+      topPct,
+      missing,
+      coveredCount: covered.size,
+      scheduledDayCount,
+      freeDayCount,
+      totalHours,
+      clashCount,
+    };
+  }, [items, scheduleEvents]);
+
+  if (initialBootLoading) {
+    return <DashboardBootSplash steps={bootSteps} />;
+  }
 
   return (
     <main className="page-wrap">
-      {dashboardRefreshing && (
-        <div
-          style={{
-            position: "fixed",
-            left: "50%",
-            top: "88px",
-            transform: "translateX(-50%)",
-            zIndex: 40,
-            display: "flex",
-            alignItems: "center",
-            gap: "0.55rem",
-            fontSize: "0.8rem",
-            fontWeight: 600,
-            letterSpacing: "0.01em",
-            color: "var(--text)",
-            border: "1px solid #22c55e",
-            background: "var(--surface)",
-            borderRadius: "999px",
-            boxShadow: "0 10px 28px rgba(10, 18, 28, 0.12)",
-            padding: "0.5rem 0.9rem",
-            animation: "pulse 1.6s ease-in-out infinite",
-            pointerEvents: "none",
-          }}
-          role="status"
-          aria-live="polite"
-        >
-          <span
-            style={{
-              width: "12px",
-              height: "12px",
-              border: "1.8px solid currentColor",
-              borderTopColor: "transparent",
-              borderRadius: "50%",
-              display: "inline-block",
-              animation: "spin 0.8s linear infinite",
-            }}
-          />
-          Loading Dashboard…
-        </div>
-      )}
-
       {/* Greeting header */}
       <div style={{ padding: "0.2rem 0 0.35rem", marginBottom: "0.65rem" }}>
         <div className="dashboard-greeting-row" style={{ display: "flex", alignItems: "center", gap: "0.7rem", margin: "0 0 0.2rem" }}>
@@ -1512,18 +1636,9 @@ export default function DashboardPage() {
               </p>
             )}
           </div>
-        </div>
-        <div className="dashboard-greeting-actions" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "0.2rem" }}>
-          <div style={{ paddingLeft: "60px", minWidth: 0 }}>
-            {(!displayName && email) ? (
-              <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)" }}>
-                {email}
-              </p>
-            ) : null}
-          </div>
           <button
             type="button"
-            className="dashboard-cmdpal-btn"
+            className="dashboard-cmdpal-btn dashboard-cmdpal-btn-header"
             onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { metaKey: true, key: "k", bubbles: true }))}
             aria-label="Open command palette"
           >
@@ -1534,145 +1649,110 @@ export default function DashboardPage() {
             <kbd style={{ fontSize: "0.64rem", padding: "0.1rem 0.35rem", borderRadius: "4px", border: "1px solid var(--border)", background: "var(--btn-bg)", lineHeight: 1 }}>⌘K</kbd>
           </button>
         </div>
-      </div>
-
-      {/* ── Hero stats strip ── */}
-      <div className="dashboard-hero" style={{ marginBottom: "1.25rem" }}>
-        <UpNextHeroTile
-          events={personalUpNextEvents}
-          loading={scheduleLoading}
-          index={personalUpNextIndex}
-          onPrevious={() => setPersonalUpNextIndex((current) => Math.max(0, current - 1))}
-          onNext={() => setPersonalUpNextIndex((current) => Math.min(personalUpNextEvents.length - 1, current + 1))}
-          label="Next personal events"
-          emptyText="no upcoming personal events"
-          loadingText="loading personal events…"
-        />
-        <UpNextHeroTile
-          events={schedulerUpNextEvents}
-          loading={scheduleLoading}
-          index={upNextIndex}
-          onPrevious={() => setUpNextIndex((current) => Math.max(0, current - 1))}
-          onNext={() => setUpNextIndex((current) => Math.min(schedulerUpNextEvents.length - 1, current + 1))}
-          label="Next scheduler events"
-          emptyText="no upcoming events"
-          loadingText="loading next event…"
-        />
-        <div className="dashboard-hero-stat">
-          <div className="dashboard-hero-ring-wrap">
-            <svg className="dashboard-hero-ring" viewBox="0 0 48 48" aria-hidden="true">
-              <circle cx="24" cy="24" r="20" className="dashboard-hero-ring-track" />
-              <circle cx="24" cy="24" r="20" className="dashboard-hero-ring-fill" style={{ strokeDashoffset: packRingOffset }} />
-            </svg>
-            <div className="dashboard-hero-icon-badge">
-              <svg className="dashboard-hero-stat-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" fill="none" />
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" fill="currentColor" opacity="0.3" />
-              </svg>
-            </div>
+        <div className="dashboard-greeting-actions" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "0.2rem" }}>
+          <div style={{ paddingLeft: "60px", minWidth: 0 }}>
+            {(!displayName && email) ? (
+              <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)" }}>
+                {email}
+              </p>
+            ) : null}
           </div>
-          <div className="dashboard-hero-metric" style={{ display: "flex", alignItems: "baseline", gap: "0.5rem", flexWrap: "wrap" }}>
-            <span className="dashboard-hero-value">{loading ? "–" : countPacks}</span>
-            {!loading && (
-              <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--muted)", lineHeight: 1 }}>
-                / {countSubjects} subjects
-              </span>
-            )}
-          </div>
-          <span className="dashboard-hero-label">Lesson Packs</span>
-          {!loading && (
-            <span className="dashboard-hero-sub">
-              {items.length === 0 ? "get started" : `${items.length} packs · ${uniqueSubjects > 0 ? `${uniqueSubjects} covered` : "none yet"}`}
-            </span>
-          )}
-          {!loading && subjectDots.length > 0 && (
-            <div className="dashboard-hero-dots" aria-hidden="true">
-              {subjectDots.slice(0, 9).map((subj) => (
-                <ScheduleEventIcon key={subj} subject={subj} size={13} style={{ color: subjectColor(subj) }} />
-              ))}
-            </div>
-          )}
-        </div>
-        <ActivityBySubjectCard
-          scheduleEvents={scheduleEvents}
-          loading={scheduleLoading}
-          weekStart={weekStart}
-        />
-        <div className="dashboard-hero-stat">
-          <div className="dashboard-hero-icon-badge">
-            <svg className="dashboard-hero-stat-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" fill="currentColor" opacity="0.3" />
-              <polyline points="12 6 12 12 16 14" stroke="currentColor" fill="none" />
-            </svg>
-          </div>
-          <span className="dashboard-hero-label">Insight</span>
-          <span className="dashboard-hero-insight-text">
-            {loading || !insightData
-              ? "No insight yet."
-              : insightData.missing.length > 0
-                ? `Consider adding ${insightData.missing.slice(0, 2).join(" or ")} packs to broaden coverage.`
-                : `Excellent. You cover ${insightData.coveredCount} subjects in your library, with ${insightData.topSubject} as your top subject at ${insightData.topPct}%.`}
-          </span>
         </div>
       </div>
 
-      {/* ── Two-column layout ── */}
-      <div className="dashboard-main-grid" style={{
-        display: "grid",
-        gridTemplateColumns: "1fr minmax(300px, 380px)",
-        gap: "1.25rem",
-        alignItems: "start",
-      }}>
-
-        {/* ── LEFT: scheduler ── */}
-        <div style={{ display: "flex", flexDirection: "column" as const, gap: "1rem" }}>
-
-          {/* Full Scheduler */}
-          <div style={{
+      <div className={`dashboard-top-grid${schedulerViewMode === "term" ? " is-term-view" : ""}`} style={{ marginBottom: "1.25rem" }}>
+        <div
+          style={{
             borderRadius: "16px",
             border: "1px solid var(--border-card)",
             background: "var(--surface)",
             padding: 0,
             overflow: "hidden",
-          }}>
-            <SchedulerDrawer
-              embedded
-              open
-              onClose={() => {}}
-              onScheduleChange={handleScheduleMutation}
-              initialPacks={items.map((item) => ({
-                id: item.id,
-                title: item.title,
-                subject: item.subject,
-                yearGroup: item.yearGroup,
-                topic: item.topic,
-              }))}
-              initialWeekEvents={scheduleEvents}
-            />
-          </div>
+          }}
+        >
+          <SchedulerDrawer
+            embedded
+            open
+            onClose={() => {}}
+            onScheduleChange={handleScheduleMutation}
+            onViewModeStateChange={setSchedulerViewMode}
+            initialPacks={items.map((item) => ({
+              id: item.id,
+              title: item.title,
+              subject: item.subject,
+              yearGroup: item.yearGroup,
+              topic: item.topic,
+            }))}
+            initialWeekEvents={scheduleEvents}
+          />
+        </div>
 
+        <div className={`dashboard-hero-side-wrap${schedulerViewMode === "term" ? " is-below-term" : ""}`}>
+          <div className="dashboard-header-actions">
+            <div aria-hidden="true" />
+          </div>
+          <div className="dashboard-hero dashboard-hero-side">
+            <div className="dashboard-hero-stat term-countdown-stat">
+              {!loading && activeTerm?.termEndDate ? (
+                <TermCountdownRing
+                  termName={activeTerm.termName || "Term"}
+                  termStartDate={activeTerm.termStartDate}
+                  termEndDate={activeTerm.termEndDate}
+                />
+              ) : !loading ? (
+                <>
+                  <span className="dashboard-hero-label">End of Term</span>
+                  <span className="dashboard-hero-sub">set term dates in settings</span>
+                </>
+              ) : (
+                <span className="dashboard-hero-value">–</span>
+              )}
+            </div>
+            <CombinedUpNextHeroTile
+              personalEvents={personalUpNextEvents}
+              schedulerEvents={schedulerUpNextEvents}
+              loading={scheduleLoading}
+              personalIndex={personalUpNextIndex}
+              schedulerIndex={upNextIndex}
+              onPersonalPrevious={() => setPersonalUpNextIndex((current) => Math.max(0, current - 1))}
+              onPersonalNext={() => setPersonalUpNextIndex((current) => Math.min(personalUpNextEvents.length - 1, current + 1))}
+              onSchedulerPrevious={() => setUpNextIndex((current) => Math.max(0, current - 1))}
+              onSchedulerNext={() => setUpNextIndex((current) => Math.min(schedulerUpNextEvents.length - 1, current + 1))}
+            />
+            <ActivityBySubjectCard
+              scheduleEvents={scheduleEvents}
+              loading={scheduleLoading}
+              weekStart={weekStart}
+            />
+            <div className="dashboard-hero-stat dashboard-hero-stat-insight">
+              <div className="dashboard-hero-badge-wrap dashboard-hero-badge-wrap-plain">
+                <svg className="dashboard-hero-stat-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" fill="currentColor" opacity="0.22" />
+                  <path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15z" />
+                  <path d="M6 14l.7 1.6L8.3 16l-1.6.7L6 18.3l-.7-1.6L3.7 16l1.6-.7L6 14z" />
+                </svg>
+                <span className="dashboard-hero-label" style={{ margin: 0 }}>Insight</span>
+              </div>
+              <span className="dashboard-hero-insight-text">
+                {loading || !insightData
+                  ? "No insight yet."
+                  : insightData.clashCount > 0
+                    ? `You have ${insightData.clashCount} ${insightData.clashCount === 1 ? "clashing appointment" : "clashing appointments"} this week across ${insightData.scheduledDayCount} scheduled ${insightData.scheduledDayCount === 1 ? "day" : "days"}. Diary space is tight, so it would be worth resolving overlaps before adding more.`
+                    : insightData.freeDayCount >= 2
+                      ? `Your diary still has ${insightData.freeDayCount} relatively open ${insightData.freeDayCount === 1 ? "day" : "days"} this week, with around ${insightData.totalHours} scheduled ${insightData.totalHours === 1 ? "hour" : "hours"} in place. ${insightData.missing.length > 0 ? `You could use that space to strengthen ${insightData.missing.slice(0, 2).join(" or ")} coverage.` : `Coverage is broad, with ${insightData.topSubject} currently leading at ${insightData.topPct}% of your packs.`}`
+                      : insightData.missing.length > 0
+                        ? `This is a busy week with ${insightData.totalHours} scheduled hours across ${insightData.scheduledDayCount} days. Your strongest library coverage is ${insightData.topSubject}, but ${insightData.missing.slice(0, 2).join(" and ")} still look like good opportunities for the next packs you generate.`
+                        : `This week looks well used with ${insightData.totalHours} scheduled hours across ${insightData.scheduledDayCount} days and no current clashes. Your library coverage is broad, with ${insightData.topSubject} currently strongest at ${insightData.topPct}% of saved packs.`}
+              </span>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column" as const, gap: "1rem" }}>
           <PersonalTasksCard
             tasks={tasks}
             onTasksChange={setTasks}
             onScheduleRefresh={handleTaskCrudRefresh}
           />
-
-        </div>{/* /left column */}
-
-        {/* ── RIGHT: quick actions + library visuals ── */}
-        <div style={{ display: "flex", flexDirection: "column" as const, gap: "1rem" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-            <ActionCard
-              href="/lesson-pack"
-              title="Generate Lesson Pack"
-              desc="AI-powered resources for any topic in seconds"
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
-                </svg>
-              }
-            />
-
             <ActionCard
               href="/library"
               title="Lesson Library"
@@ -1754,7 +1834,6 @@ export default function DashboardPage() {
               )}
 
               {!loading && recent.map((item) => {
-                const color = subjectColor(item.subject);
                 return (
                   <Link key={item.id} href="/library" style={{ textDecoration: "none" }}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)"; }}
@@ -1765,19 +1844,13 @@ export default function DashboardPage() {
                       borderRadius: "14px", border: "1px solid var(--border-card)", background: "var(--surface)",
                       transition: "border-color 150ms ease, transform 120ms ease",
                     }}>
-                      <div style={{
-                        width: "38px", height: "38px", borderRadius: "10px",
-                        background: `color-mix(in srgb, ${color} 14%, transparent)`,
-                        border: `1px solid color-mix(in srgb, ${color} 25%, transparent)`,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        flexShrink: 0, fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.04em", color,
-                      }}>
-                        {item.subject.slice(0, 3).toUpperCase()}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: subjectColor(item.subject) }}>
+                        <ScheduleEventIcon subject={item.subject} size={18} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ margin: "0 0 0.2rem", fontSize: "0.87rem", fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.topic}</p>
                         <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" as const }}>
-                          <span style={{ fontSize: "0.68rem", fontWeight: 600, padding: "0.08rem 0.45rem", borderRadius: "999px", background: `color-mix(in srgb, ${color} 12%, transparent)`, color }}>{item.yearGroup}</span>
+                          <span style={{ fontSize: "0.68rem", fontWeight: 600, padding: "0.08rem 0.45rem", borderRadius: "999px", background: `color-mix(in srgb, ${subjectColor(item.subject)} 12%, transparent)`, color: subjectColor(item.subject) }}>{item.yearGroup}</span>
                           <span style={{ fontSize: "0.72rem", color: "var(--muted)" }}>{item.subject}</span>
                         </div>
                       </div>
@@ -1788,9 +1861,9 @@ export default function DashboardPage() {
               })}
             </div>
           </div>
+          </div>
         </div>
-
-      </div>{/* /outer grid */}
+      </div>
 
     </main>
   );
