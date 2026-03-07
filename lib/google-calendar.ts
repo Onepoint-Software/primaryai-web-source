@@ -9,7 +9,7 @@ const OAUTH_SCOPES = [
   "openid",
   "email",
   "profile",
-  "https://www.googleapis.com/auth/calendar",
+  "https://www.googleapis.com/auth/calendar.events",
 ];
 
 function tokenEndpoint() {
@@ -278,8 +278,11 @@ export async function deleteGoogleCalendarEvent(args: {
 }
 
 export function hasGoogleWriteScope(scope?: string | null) {
-  return String(scope || "")
+  const scopes = String(scope || "")
     .toLowerCase()
-    .split(/\s+/)
-    .includes("https://www.googleapis.com/auth/calendar");
+    .split(/\s+/);
+  return (
+    scopes.includes("https://www.googleapis.com/auth/calendar.events") ||
+    scopes.includes("https://www.googleapis.com/auth/calendar")
+  );
 }
