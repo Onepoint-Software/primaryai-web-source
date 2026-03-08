@@ -1702,10 +1702,16 @@ export default function DashboardPage() {
                   termEndDate={activeTerm.termEndDate}
                 />
               ) : !loading ? (
-                <>
-                  <span className="dashboard-hero-label">End of Term</span>
-                  <span className="dashboard-hero-sub">set term dates in settings</span>
-                </>
+                <div style={{ padding: "1.5rem 1.25rem", display: "flex", flexDirection: "column", gap: "0.5rem", justifyContent: "center", flex: 1 }}>
+                  <span className="dashboard-hero-label">No active term set</span>
+                  <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--muted)", lineHeight: 1.5 }}>
+                    Add your term dates in{" "}
+                    <Link href="/settings" style={{ color: "var(--accent)", textDecoration: "underline", textUnderlineOffset: "2px" }}>
+                      Settings
+                    </Link>{" "}
+                    to see your countdown.
+                  </p>
+                </div>
               ) : (
                 <span className="dashboard-hero-value">–</span>
               )}
