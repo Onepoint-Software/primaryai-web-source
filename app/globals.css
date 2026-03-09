@@ -5738,98 +5738,129 @@ html[data-theme="light"] .surveyx-checkbox-item.is-selected {
   background: rgb(var(--accent-rgb) / 0.1);
 }
 
+/* ── Term / Gantt view ── premium redesign ───────────────────────────── */
+
 .scheduler-term-scroll {
   overflow: auto;
-  max-height: min(76vh, 820px);
+  max-height: min(76vh, 860px);
   border-top: 1px solid var(--border);
+  border-radius: 0 0 10px 10px;
+  background: var(--surface);
+  /* Scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
+.scheduler-term-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.scheduler-term-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
 .scheduler-term-grid {
   display: grid;
   align-items: stretch;
   background: var(--surface);
+  /* Subtle cross-hatch grid lines via background gradients */
 }
 
+/* ── Header row ─────────────────────────────── */
 .scheduler-term-head {
   position: sticky;
   top: 0;
   z-index: 4;
-  display: grid;
-  place-items: center;
-  gap: 0.05rem;
-  min-height: 48px;
-  padding: 0.3rem 0.15rem;
-  border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 96%, white 4%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  min-height: 52px;
+  padding: 0.35rem 0.1rem;
+  border-right: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-bottom: 2px solid color-mix(in srgb, var(--border) 90%, var(--text) 10%);
+  background: color-mix(in srgb, var(--surface) 92%, var(--field-bg) 8%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: var(--muted);
   overflow: hidden;
+  transition: background 150ms ease;
 }
 
 .scheduler-term-head-label {
   left: 0;
   z-index: 6;
   position: sticky;
-  justify-content: start;
-  padding: 0.75rem 0.9rem;
-  font-size: 0.72rem;
+  justify-content: flex-start;
+  padding: 0.75rem 1rem;
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--muted);
 }
 
 .scheduler-term-head-day {
-  font-size: 0.58rem;
+  font-size: 0.55rem;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  opacity: 0.7;
+  line-height: 1;
 }
 
 .scheduler-term-head-date {
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   font-weight: 700;
   color: var(--text);
+  line-height: 1;
 }
 
+/* Weekend columns — visually recessed */
 .scheduler-term-head.is-weekend,
 .scheduler-term-row-cell.is-weekend {
-  background: color-mix(in srgb, var(--surface) 90%, var(--border) 10%);
+  background: color-mix(in srgb, var(--surface) 85%, var(--field-bg) 15%);
+}
+.scheduler-term-row-label.is-alt.is-weekend,
+.scheduler-term-row-cell.is-alt.is-weekend {
+  background: color-mix(in srgb, var(--surface) 80%, var(--field-bg) 20%);
 }
 
 .scheduler-term-head.is-weekend {
   padding: 0.25rem 0.05rem;
   gap: 0;
 }
+.scheduler-term-head.is-weekend .scheduler-term-head-day { font-size: 0.48rem; }
+.scheduler-term-head.is-weekend .scheduler-term-head-date { font-size: 0.62rem; font-weight: 600; }
 
-.scheduler-term-head.is-weekend .scheduler-term-head-day {
-  font-size: 0.5rem;
-}
-
-.scheduler-term-head.is-weekend .scheduler-term-head-date {
-  font-size: 0.6rem;
-  font-weight: 600;
-}
-
+/* Week separator */
 .scheduler-term-head.is-week-start,
 .scheduler-term-row-cell.is-week-start {
-  border-left: 2px solid color-mix(in srgb, var(--border) 40%, var(--text) 25%);
+  border-left: 2px solid color-mix(in srgb, var(--border) 50%, var(--text) 20%);
 }
 
+/* Month label chip */
 .scheduler-term-head-month {
-  font-size: 0.5rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-size: 0.48rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--accent);
   line-height: 1;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  padding: 0.12em 0.4em;
+  border-radius: 3px;
+  margin-bottom: 1px;
 }
 
+/* Today column — header */
 .scheduler-term-head.is-today {
-  box-shadow: inset 0 0 0 1px rgb(34 197 94 / 0.5);
-  background: color-mix(in srgb, rgb(34 197 94) 10%, var(--surface));
+  background: color-mix(in srgb, rgb(34 197 94) 12%, var(--surface));
+  border-bottom-color: rgb(34 197 94 / 0.7);
+  box-shadow: inset 0 -2px 0 rgb(34 197 94 / 0.6);
+  color: color-mix(in srgb, rgb(34 197 94) 80%, var(--text));
+}
+.scheduler-term-head.is-today .scheduler-term-head-date {
+  color: rgb(34 197 94);
+  font-weight: 800;
 }
 
+/* ── Row labels (frozen left column) ────────── */
 .scheduler-term-row-label {
   position: sticky;
   left: 0;
@@ -5841,11 +5872,24 @@ html[data-theme="light"] .surveyx-checkbox-item.is-selected {
   min-width: 0;
   border: none;
   border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 97%, white 3%);
-  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: color-mix(in srgb, var(--surface) 97%, var(--field-bg) 3%);
+  padding: 0 0.9rem;
+  min-height: 56px;
   text-align: left;
   cursor: pointer;
+  transition: background 120ms ease;
+}
+.scheduler-term-row-label:hover {
+  background: color-mix(in srgb, var(--surface) 88%, var(--field-bg) 12%);
+}
+
+/* Alternating row tint */
+.scheduler-term-row-label.is-alt {
+  background: color-mix(in srgb, var(--surface) 91%, var(--field-bg) 9%);
+}
+.scheduler-term-row-label.is-alt:hover {
+  background: color-mix(in srgb, var(--surface) 84%, var(--field-bg) 16%);
 }
 
 .scheduler-term-row-label-empty {
@@ -5860,6 +5904,7 @@ html[data-theme="light"] .surveyx-checkbox-item.is-selected {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: color 150ms ease;
 }
 
 .scheduler-term-row-text {
@@ -5879,32 +5924,76 @@ html[data-theme="light"] .surveyx-checkbox-item.is-selected {
 }
 
 .scheduler-term-row-meta {
-  font-size: 0.67rem;
+  font-size: 0.65rem;
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
+/* ── Data cells ─────────────────────────────── */
 .scheduler-term-row-track {
   display: grid;
 }
 
 .scheduler-term-row-cell {
-  min-height: 44px;
-  border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  transition: filter 120ms ease;
+  position: relative;
+  min-height: 56px;
+  border-right: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  transition: background 120ms ease;
+  /* Centering for gantt bar */
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 4px 3px;
+  overflow: hidden;
+}
+
+.scheduler-term-row-cell.is-alt {
+  background: color-mix(in srgb, var(--surface) 91%, var(--field-bg) 9%);
+}
+
+/* Today column — cells */
+.scheduler-term-row-cell.is-today-col,
+.scheduler-term-row-label.is-today-col {
+  background: color-mix(in srgb, rgb(34 197 94) 6%, var(--surface));
+}
+.scheduler-term-row-cell.is-alt.is-today-col {
+  background: color-mix(in srgb, rgb(34 197 94) 8%, var(--surface) 92%);
 }
 
 .scheduler-term-row-cell.has-events {
   cursor: pointer;
 }
-
 .scheduler-term-row-cell.has-events:hover {
-  filter: brightness(0.88);
+  background: color-mix(in srgb, var(--surface) 80%, var(--field-bg) 20%);
+}
+.scheduler-term-row-cell.is-today-col.has-events:hover {
+  background: color-mix(in srgb, rgb(34 197 94) 14%, var(--surface));
 }
 
+/* ── Gantt bar ──────────────────────────────── */
+.scheduler-gantt-bar {
+  display: block;
+  width: 70%;
+  min-width: 6px;
+  max-width: 28px;
+  border-radius: 4px 4px 2px 2px;
+  /* height is set inline */
+  min-height: 4px;
+  transition: height 350ms cubic-bezier(0.34, 1.2, 0.64, 1),
+              opacity 200ms ease,
+              filter 150ms ease;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.18), 0 0 0 1px rgb(255 255 255 / 0.08) inset;
+  will-change: height;
+}
+.scheduler-term-row-cell:hover .scheduler-gantt-bar {
+  filter: brightness(1.15) saturate(1.1);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.28), 0 0 0 1px rgb(255 255 255 / 0.12) inset;
+}
 
+/* ── Empty state ────────────────────────────── */
 .scheduler-term-empty {
-  padding: 1rem;
+  padding: 1.25rem 1.5rem;
   font-size: 0.84rem;
   color: var(--muted);
   border-top: 1px solid var(--border);

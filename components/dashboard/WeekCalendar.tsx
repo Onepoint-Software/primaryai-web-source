@@ -346,6 +346,17 @@ export default function WeekCalendar({
     return totals;
   }, [termEvents]);
 
+  // Max minutes in any single day cell across all subjects — used to normalise bar heights
+  const termMaxDayMins = useMemo(() => {
+    let max = 60; // minimum baseline
+    for (const row of termSubjectRows) {
+      for (const [, entry] of row.dayData) {
+        if (entry.mins > max) max = entry.mins;
+      }
+    }
+    return max;
+  }, [termSubjectRows]);
+
   const termColTemplate = useMemo(
     () => termDays.map(d => d.isWeekend ? "18px" : "minmax(28px, 1fr)").join(" "),
     [termDays],
@@ -537,19 +548,24 @@ export default function WeekCalendar({
                 );
               })}
 
-              {termSubjectRows.length > 0 ? termSubjectRows.map((row) => (
+              {termSubjectRows.length > 0 ? termSubjectRows.map((row, rowIdx) => (
                 <div key={row.subject} style={{ display: "contents" }}>
-                  <div className="scheduler-term-row-label scheduler-term-row-label-subject">
-                    <span className="scheduler-term-row-icon">
-                      <ScheduleEventIcon subject={row.subject} size={12} />
+                  {/* Row label */}
+                  <div
+                    className={`scheduler-term-row-label scheduler-term-row-label-subject${rowIdx % 2 === 1 ? " is-alt" : ""}`}
+                    style={{ borderLeft: `3px solid ${row.color}` }}
+                  >
+                    <span className="scheduler-term-row-icon" style={{ color: row.color }}>
+                      <ScheduleEventIcon subject={row.subject} size={13} />
                     </span>
                     <span className="scheduler-term-row-text">
                       <span className="scheduler-term-row-title">{row.subject}</span>
                       <span className="scheduler-term-row-meta">
-                        {row.totalEvents} {row.totalEvents === 1 ? "item" : "items"} this term
+                        {row.totalEvents} {row.totalEvents === 1 ? "lesson" : "lessons"}
                       </span>
                     </span>
                   </div>
+                  {/* Day cells with Gantt bars */}
                   <div
                     className="scheduler-term-row-track"
                     style={{
@@ -560,24 +576,30 @@ export default function WeekCalendar({
                     {termDays.map((day, dayIdx) => {
                       const dayEntry = row.dayData.get(day.iso);
                       const dayTotal = termDayTotals.get(day.iso) ?? 0;
-                      const pct = dayEntry && dayTotal > 0 ? dayEntry.events.length / dayTotal : 0;
+                      const barIntensity = dayEntry ? Math.min(1, dayEntry.mins / termMaxDayMins) : 0;
                       const firstEvent = dayEntry?.events[0];
                       const tooltipText = dayEntry
-                        ? `${dayEntry.events.length} of ${dayTotal} event${dayTotal !== 1 ? "s" : ""} today · ${dayEntry.mins} min`
+                        ? `${row.subject}: ${dayEntry.events.length} lesson${dayEntry.events.length !== 1 ? "s" : ""} · ${dayEntry.mins} min`
                         : undefined;
                       return (
                         <div
                           key={`${row.subject}-${day.iso}`}
-                          className={`scheduler-term-row-cell${day.isWeekend ? " is-weekend" : ""}${day.isMonday ? " is-week-start" : ""}${pct > 0 ? " has-events" : ""}${allDayColumnColors[day.iso] ? " scheduler-all-day-col" : ""}`}
-                          style={{
-                            gridColumn: dayIdx + 1,
-                            background: pct > 0
-                              ? `linear-gradient(to top, color-mix(in srgb, ${row.color} 55%, var(--surface)) ${Math.round(pct * 100)}%, var(--surface) ${Math.round(pct * 100)}%)`
-                              : allDayColumnColors[day.iso] ? `color-mix(in srgb, ${allDayColumnColors[day.iso]} 10%, var(--surface))` : undefined,
-                          }}
+                          className={`scheduler-term-row-cell${day.isWeekend ? " is-weekend" : ""}${day.isMonday ? " is-week-start" : ""}${dayEntry ? " has-events" : ""}${day.isToday ? " is-today-col" : ""}${rowIdx % 2 === 1 ? " is-alt" : ""}${allDayColumnColors[day.iso] ? " scheduler-all-day-col" : ""}`}
+                          style={{ gridColumn: dayIdx + 1 }}
                           onClick={firstEvent ? () => onEventClick(firstEvent) : undefined}
                           title={tooltipText}
-                        />
+                        >
+                          {dayEntry && barIntensity > 0 && (
+                            <span
+                              className="scheduler-gantt-bar"
+                              style={{
+                                height: `${Math.max(18, Math.round(barIntensity * 78))}%`,
+                                background: row.color,
+                                opacity: 0.55 + barIntensity * 0.35,
+                              }}
+                            />
+                          )}
+                        </div>
                       );
                     })}
                   </div>

@@ -89,7 +89,7 @@ severity options: "high" (urgent), "medium" (worth noting), "low" (minor)
 Only include subjects that actually have gaps. Keep wellCovered to genuinely well-covered subjects.`;
 
   try {
-    const raw = await callScheduleAI(prompt, 20_000);
+    const raw = await callScheduleAI(prompt);
     const parsed = extractJson(raw) as { gaps?: unknown[]; wellCovered?: string[] };
     return NextResponse.json({
       ok: true,

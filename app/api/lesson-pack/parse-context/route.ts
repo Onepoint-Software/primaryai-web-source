@@ -27,7 +27,8 @@ async function parseDocx(buffer: ArrayBuffer) {
 async function parseExcel(buffer: ArrayBuffer) {
   const ExcelJS = (await import("exceljs")).default;
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(Buffer.from(buffer));
+  const input = Buffer.from(new Uint8Array(buffer)) as unknown as Parameters<typeof workbook.xlsx.load>[0];
+  await workbook.xlsx.load(input);
 
   const rows: string[] = [];
   workbook.eachSheet((sheet) => {

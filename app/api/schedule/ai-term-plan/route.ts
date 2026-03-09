@@ -61,7 +61,7 @@ Respond with ONLY valid JSON:
 }`;
 
   try {
-    const raw = await callScheduleAI(prompt, 45_000);
+    const raw = await callScheduleAI(prompt);
     const parsed = extractJson(raw) as { events?: unknown[] };
     if (!Array.isArray(parsed?.events)) throw new Error("AI returned unexpected format");
 
