@@ -77,7 +77,7 @@ const NAV = [
 ];
 
 export default function AppSidebar() {
-  const path = usePathname();
+  const path = usePathname() ?? "";
   const [avatarUrl, setAvatarUrl] = useState<string>("");
   const [initials, setInitials] = useState<string>("");
   const accountItem = NAV.find((item) => item.href === "/account") ?? null;

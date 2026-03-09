@@ -56,7 +56,7 @@ const NAV_ITEMS = [
 ];
 
 export default function MobileBottomNav() {
-  const path = usePathname();
+  const path = usePathname() ?? "";
   const [avatarUrl, setAvatarUrl] = useState("");
   const [initials, setInitials] = useState("");
 

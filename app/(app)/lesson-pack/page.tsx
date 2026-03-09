@@ -209,7 +209,7 @@ function SlideCard({ slide, index }: { slide: { title: string; bullets: string[]
 
 export default function LessonPackPage() {
   const searchParams = useSearchParams();
-  const forceSaveFromScheduler = searchParams.get("from") === "scheduler";
+  const forceSaveFromScheduler = searchParams?.get("from") === "scheduler";
   const [form, setForm] = useState({ year_group: "", subject: "", topic: "" });
   const [result, setResult] = useState<LessonPackResponse | null>(null);
   const [exportResult, setExportResult] = useState<ExportResponse | null>(null);
@@ -239,7 +239,7 @@ export default function LessonPackPage() {
 
   function showClassNotesToast() {
     const remaining = Math.max(0, MIN_CLASS_NOTES_CHARS - classNotesLength);
-    const missing = [];
+    const missing: string[] = [];
     if (!settingsChecklist.ealPercent) missing.push("EAL %");
     if (!settingsChecklist.pupilPremiumPercent) missing.push("Pupil Premium %");
     if (!settingsChecklist.aboveStandardPercent) missing.push("Above standard %");
@@ -308,7 +308,7 @@ export default function LessonPackPage() {
 
   // Load saved pack from library if ?id= is present
   useEffect(() => {
-    const id = searchParams.get("id");
+    const id = searchParams?.get("id");
     if (!id) return;
     void (async () => {
       setLoading(true);

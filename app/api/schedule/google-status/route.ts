@@ -11,7 +11,8 @@ export async function GET() {
 
   try {
     const status = await getGoogleSyncStatus(session.userId);
-    return NextResponse.json({ ok: true, configured: isGoogleCalendarConfigured(), ...status });
+    const { configured: _configured, ...restStatus } = status;
+    return NextResponse.json({ ok: true, ...restStatus, configured: isGoogleCalendarConfigured() });
   } catch (error) {
     return NextResponse.json(
       { error: String((error as Error)?.message || "Could not load Google Calendar sync status") },

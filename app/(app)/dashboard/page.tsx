@@ -1119,7 +1119,7 @@ export default function DashboardPage() {
       <div className={`dashboard-top-grid${schedulerViewMode === "term" ? " is-term-view" : ""}`} style={{ marginBottom: "1.25rem" }}>
         <div className="dashboard-countdown-wrapper">
           <div className="dashboard-hero-stat term-countdown-stat">
-            {!loading && activeTerm?.termEndDate ? (
+            {!loading && activeTerm?.termStartDate && activeTerm?.termEndDate ? (
               <TermCountdownRing
                 termName={activeTerm.termName || "Term"}
                 termStartDate={activeTerm.termStartDate}

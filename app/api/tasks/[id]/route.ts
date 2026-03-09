@@ -48,6 +48,22 @@ function toTime(minutes: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
 }
 
+type TaskScheduleEvent = {
+  id: string;
+  title: string;
+  subject: string;
+  year_group: string;
+  scheduled_date: string;
+  start_time: string;
+  end_time: string;
+  notes?: string | null;
+  event_type?: string | null;
+  event_category?: string | null;
+  external_source?: string | null;
+  google_event_id?: string | null;
+  outlook_event_id?: string | null;
+};
+
 async function getNextTaskSlot(
   supabase: any,
   userId: string,
@@ -191,7 +207,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const schedulerTitle = `${completed ? "Done" : importance === "high" ? "High priority" : "Task"}: ${title}`;
   const schedulerEventCategory = completed ? "task_done" : "task";
 
-  let scheduleEvent = null;
+  let scheduleEvent: TaskScheduleEvent | null = null;
   if (existingEventId) {
     const schedulePatch: Record<string, string | null> = {
       title: schedulerTitle,
@@ -217,7 +233,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       .eq("user_id", session.userId)
       .select("*")
       .maybeSingle();
-    scheduleEvent = updatedSchedule || null;
+    scheduleEvent = (updatedSchedule as TaskScheduleEvent | null) || null;
   } else {
     const newSlot = dueTime
       ? { startTime: dueTime, endTime: toTime(toMinutes(dueTime) + 30) }
@@ -240,7 +256,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       .select("*")
       .maybeSingle();
     if (createdSchedule?.id) {
-      scheduleEvent = createdSchedule;
+      scheduleEvent = createdSchedule as TaskScheduleEvent;
       const { data: linkedTask } = await supabase
         .from("personal_tasks")
         .update({ schedule_event_id: createdSchedule.id, updated_at: new Date().toISOString() })
@@ -295,12 +311,13 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   }
 
   const { id } = await params;
-  const { data: existing } = await supabase
+  const { data } = await supabase
     .from("personal_tasks")
     .select("id,schedule_event_id")
     .eq("id", id)
     .eq("user_id", session.userId)
     .maybeSingle();
+  const existing = data as { id?: string; schedule_event_id?: string | null } | null;
 
   if (!existing?.id) {
     return NextResponse.json({ error: "Task not found" }, { status: 404 });

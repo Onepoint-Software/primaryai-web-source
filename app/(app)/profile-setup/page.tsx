@@ -34,7 +34,7 @@ export default function ProfileSetupPage() {
   const uploadInputId = useId();
 
   const nextPath = useMemo(() => {
-    const raw = String(searchParams.get("next") || "/dashboard");
+    const raw = String(searchParams?.get("next") || "/dashboard");
     return isSafeNextPath(raw) ? raw : "/dashboard";
   }, [searchParams]);
   useEffect(() => {
