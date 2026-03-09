@@ -192,6 +192,14 @@ function IconInbox({ size = 14 }: { size?: number }) {
   );
 }
 
+function IconChevronRight({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
+  );
+}
+
 function SortIndicator({ col, active, dir }: { col: string; active: string; dir: "asc" | "desc" }) {
   if (col !== active) {
     return (
@@ -548,6 +556,15 @@ export default function LibraryPage() {
     void loadDocuments();
   }, [loadFolders, loadPacks, loadDocuments]);
 
+  // Escape key closes the preview drawer
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setSelectedItem(null);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   // Sort toggle
   function toggleSort(col: "name" | "type" | "date") {
     if (sortCol === col) setSortDir((d) => d === "asc" ? "desc" : "asc");
@@ -702,7 +719,10 @@ export default function LibraryPage() {
   const totalItems = visiblePacks.length + visibleDocs.length;
   const folderName = selectedFolderId === ALL_ID ? "All Items" : selectedFolderId === UNFILED_ID ? "Unfiled" : (folders.find((f) => f.id === selectedFolderId)?.name ?? "Folder");
 
+  const drawerOpen = selectedItem !== null;
+
   return (
+    <>
     <div className="lib-shell">
       {/* ── Top chrome ── */}
       <div className="lib-chrome">
@@ -929,31 +949,80 @@ export default function LibraryPage() {
           )}
         </main>
 
-        {/* Right: preview rail */}
+        {/* Right: preview rail — always shows placeholder */}
         <aside className="lib-preview-rail">
-          {selectedItem ? (
-            selectedItem.kind === "pack" ? (
-              <PackPreview item={selectedItem.item} />
-            ) : (
-              <DocPreview item={selectedItem.item} onDownload={() => downloadDoc(selectedItem.item)} />
-            )
-          ) : (
-            <div className="lib-preview-empty">
-              <div className="lib-preview-empty-icon">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.3 }}>
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="16" y1="13" x2="8" y2="13" />
-                  <line x1="16" y1="17" x2="8" y2="17" />
-                  <polyline points="10 9 9 9 8 9" />
-                </svg>
-              </div>
-              <p className="lib-preview-empty-text">Select an item to preview</p>
-            </div>
-          )}
+          <div className="lib-preview-empty">
+            {/* Document + magnifying glass illustration */}
+            <svg
+              className="lib-preview-empty-illustration"
+              viewBox="0 0 120 130"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
+            >
+              {/* Document body */}
+              <rect x="12" y="8" width="72" height="90" rx="6" fill="rgb(var(--accent-rgb) / 0.15)" stroke="rgb(var(--accent-rgb) / 0.35)" strokeWidth="2.5" />
+              {/* Folded corner */}
+              <path d="M60 8 L84 8 L84 26 Z" fill="rgb(var(--accent-rgb) / 0.25)" stroke="rgb(var(--accent-rgb) / 0.35)" strokeWidth="2" strokeLinejoin="round" />
+              {/* Text lines */}
+              <rect x="24" y="36" width="44" height="5" rx="2.5" fill="rgb(var(--accent-rgb) / 0.4)" />
+              <rect x="24" y="48" width="38" height="5" rx="2.5" fill="rgb(var(--accent-rgb) / 0.3)" />
+              <rect x="24" y="60" width="42" height="5" rx="2.5" fill="rgb(var(--accent-rgb) / 0.3)" />
+              <rect x="24" y="72" width="30" height="5" rx="2.5" fill="rgb(var(--accent-rgb) / 0.2)" />
+              {/* Magnifying glass circle */}
+              <circle cx="82" cy="90" r="24" fill="rgb(var(--accent-rgb) / 0.12)" stroke="rgb(var(--accent-rgb) / 0.5)" strokeWidth="6" />
+              {/* Magnifying glass inner highlight */}
+              <circle cx="76" cy="84" r="5" fill="rgb(var(--accent-rgb) / 0.2)" />
+              {/* Magnifying glass handle */}
+              <line x1="99" y1="107" x2="113" y2="121" stroke="rgb(var(--accent-rgb) / 0.55)" strokeWidth="7" strokeLinecap="round" />
+            </svg>
+            <p className="lib-preview-empty-heading">Nothing selected</p>
+            <p className="lib-preview-empty-text">Click any item in the list to preview it here</p>
+          </div>
         </aside>
 
       </div>
     </div>
+
+    {/* Backdrop */}
+    {drawerOpen && (
+      <div
+        className="lib-drawer-backdrop"
+        onClick={() => setSelectedItem(null)}
+        aria-hidden="true"
+      />
+    )}
+
+    {/* Preview drawer */}
+    <div
+      className={`lib-drawer${drawerOpen ? " is-open" : ""}`}
+      role="dialog"
+      aria-modal="true"
+      aria-label="File preview"
+    >
+      <div className="lib-drawer-header">
+        <button
+          className="lib-drawer-close"
+          onClick={() => setSelectedItem(null)}
+          title="Close preview"
+        >
+          <IconChevronRight size={18} />
+          <span>Close preview</span>
+        </button>
+        {selectedItem && (
+          <span className="lib-drawer-title">
+            {selectedItem.kind === "pack" ? selectedItem.item.title : selectedItem.item.name}
+          </span>
+        )}
+      </div>
+      <div className="lib-drawer-content">
+        {selectedItem && (
+          selectedItem.kind === "pack"
+            ? <PackPreview item={selectedItem.item} />
+            : <DocPreview item={selectedItem.item} onDownload={() => downloadDoc(selectedItem.item)} />
+        )}
+      </div>
+    </div>
+    </>
   );
 }
