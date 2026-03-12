@@ -38,6 +38,19 @@ type UserTerm = {
   termEndDate: string;
 };
 
+type SchedulerLoadKey = "terms" | "calendar" | "outlook" | "google";
+
+const SCHEDULER_LOAD_ORDER: SchedulerLoadKey[] = ["terms", "calendar", "outlook", "google"];
+
+function createSchedulerLoadState(calendarReady = false) {
+  return {
+    terms: false,
+    calendar: calendarReady,
+    outlook: false,
+    google: false,
+  };
+}
+
 function getMondayOf(date: Date): Date {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -100,6 +113,48 @@ function addMinutes(time: string, mins: number): string {
 function isImportedCalendarEvent(event?: Pick<ScheduleEvent, "eventType" | "eventCategory"> | null) {
   const category = String(event?.eventCategory || "").toLowerCase();
   return event?.eventType === "custom" && (category === "outlook_import" || category === "google_import");
+}
+
+type SchedulerFilterKey = "personal" | "tasks" | "lesson_pack" | "school" | "imports";
+
+const SCHEDULER_FILTER_OPTIONS: Array<{ key: SchedulerFilterKey; label: string }> = [
+  { key: "personal", label: "Personal Events" },
+  { key: "tasks", label: "Tasks" },
+  { key: "lesson_pack", label: "Lesson Packs" },
+  { key: "school", label: "School Events" },
+  { key: "imports", label: "Calendar Imports" },
+];
+
+function isTaskSchedulerEvent(event: Pick<ScheduleEvent, "eventType" | "eventCategory">) {
+  const category = String(event.eventCategory || "").toLowerCase();
+  return event.eventType === "custom" && category.startsWith("task");
+}
+
+function isPersonalSchedulerEvent(event: Pick<ScheduleEvent, "eventType" | "eventCategory" | "subject">) {
+  const category = String(event.eventCategory || "").toLowerCase();
+  return (
+    event.eventType === "custom" &&
+    !category.startsWith("task") &&
+    (category === "personal" || String(event.subject || "").toLowerCase() === "personal")
+  );
+}
+
+function isSchoolSchedulerEvent(event: Pick<ScheduleEvent, "eventType" | "eventCategory" | "subject">) {
+  if (event.eventType !== "custom") return false;
+  if (isImportedCalendarEvent(event)) return false;
+  if (isTaskSchedulerEvent(event)) return false;
+  if (isPersonalSchedulerEvent(event)) return false;
+  return true;
+}
+
+function matchesSchedulerFilter(event: ScheduleEvent, filters: Set<SchedulerFilterKey>) {
+  if (filters.size === 0) return true;
+  if (event.eventType !== "custom") return filters.has("lesson_pack");
+  if (isImportedCalendarEvent(event)) return filters.has("imports");
+  if (isTaskSchedulerEvent(event)) return filters.has("tasks");
+  if (isPersonalSchedulerEvent(event)) return filters.has("personal");
+  if (isSchoolSchedulerEvent(event)) return filters.has("school");
+  return false;
 }
 
 export default function SchedulerDrawer({
@@ -184,6 +239,8 @@ export default function SchedulerDrawer({
   const [googleCanWrite, setGoogleCanWrite] = useState(false);
   const [googleEmail, setGoogleEmail] = useState("");
   const [googleLastSyncedAt, setGoogleLastSyncedAt] = useState<string | null>(null);
+  const [activeFilters, setActiveFilters] = useState<Set<SchedulerFilterKey>>(new Set());
+  const [loadState, setLoadState] = useState(() => createSchedulerLoadState(initialWeekEvents.length > 0));
   const [unscheduleDragOver, setUnscheduleDragOver] = useState(false);
   const [error, setError] = useState("");
   const currentTerm = useMemo(() => findCurrentTerm(terms, cursorDate), [terms, cursorDate]);
@@ -193,6 +250,22 @@ export default function SchedulerDrawer({
   }, [onViewModeStateChange, viewMode]);
 
   const calendarEvents = useMemo(() => [...events, ...bankHolidayEvents], [events, bankHolidayEvents]);
+  const filteredCalendarEvents = useMemo(
+    () => calendarEvents.filter((event) => matchesSchedulerFilter(event, activeFilters)),
+    [activeFilters, calendarEvents],
+  );
+  const schedulerLoadProgress = useMemo(() => {
+    const completed = SCHEDULER_LOAD_ORDER.filter((key) => loadState[key]).length;
+    return Math.round((completed / SCHEDULER_LOAD_ORDER.length) * 100);
+  }, [loadState]);
+  const schedulerLoading = schedulerLoadProgress < 100;
+  const schedulerLoadLabel = useMemo(() => {
+    if (loadState.terms === false) return "Loading term dates…";
+    if (loadState.calendar === false) return "Loading timetable…";
+    if (loadState.outlook === false) return "Checking Outlook…";
+    if (loadState.google === false) return "Checking Google Calendar…";
+    return "Timetable ready";
+  }, [loadState]);
   const dragRef = useRef<PackItem | null>(null);
   const sidebarRef = useRef<HTMLElement | null>(null);
   const [sidebarHeight, setSidebarHeight] = useState<number | null>(null);
@@ -282,6 +355,12 @@ export default function SchedulerDrawer({
 
   useEffect(() => {
     if (!open) return;
+    setLoadState(createSchedulerLoadState(initialWeekEvents.length > 0));
+  }, [open, initialWeekEvents.length]);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoadState((prev) => ({ ...prev, terms: false }));
     fetch("/api/profile/terms", { cache: "no-store" })
       .then((response) => response.json().catch(() => ({})))
       .then((data) => {
@@ -296,13 +375,15 @@ export default function SchedulerDrawer({
           );
         }
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => setLoadState((prev) => ({ ...prev, terms: true })));
   }, [open]);
 
   // Load events for the current view range
   const loadEvents = useCallback((mode: CalendarViewMode, anchorDate: Date, includeWeekends: boolean, term: UserTerm | null) => {
     const { from, to } = getRangeForView(mode, anchorDate, includeWeekends, term);
     setEventsLoading(true);
+    setLoadState((prev) => ({ ...prev, calendar: false }));
     setError("");
     Promise.all([
       fetch(`/api/schedule?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { cache: "no-store" }).then((r) => r.json()),
@@ -319,13 +400,17 @@ export default function SchedulerDrawer({
         }
       })
       .catch(() => setError("Could not load schedule."))
-      .finally(() => setEventsLoading(false));
+      .finally(() => {
+        setEventsLoading(false);
+        setLoadState((prev) => ({ ...prev, calendar: true }));
+      });
   }, [mapApiEvent]);
 
   useEffect(() => {
     if (!open) return;
     if (viewMode === "week" && !showWeekends && toISO(getMondayOf(cursorDate)) === todayWeekIso && seededWeekEvents.current) {
       seededWeekEvents.current = false;
+      setLoadState((prev) => ({ ...prev, calendar: true }));
       return;
     }
     loadEvents(viewMode, cursorDate, showWeekends, currentTerm);
@@ -366,6 +451,7 @@ export default function SchedulerDrawer({
   }, [open, loadEvents, viewMode, cursorDate, mapApiEvent, showWeekends, currentTerm]);
 
   const loadOutlookStatus = useCallback(async () => {
+    setLoadState((prev) => ({ ...prev, outlook: false }));
     const response = await fetch("/api/schedule/outlook-status", { cache: "no-store" });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data?.ok) {
@@ -377,10 +463,12 @@ export default function SchedulerDrawer({
     setOutlookCanWrite(Boolean(data.canWrite));
     setOutlookEmail(String(data.email || ""));
     setOutlookLastSyncedAt(data.lastSyncedAt ? String(data.lastSyncedAt) : null);
+    setLoadState((prev) => ({ ...prev, outlook: true }));
     return data;
   }, []);
 
   const loadGoogleStatus = useCallback(async () => {
+    setLoadState((prev) => ({ ...prev, google: false }));
     const response = await fetch("/api/schedule/google-status", { cache: "no-store" });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data?.ok) {
@@ -392,6 +480,7 @@ export default function SchedulerDrawer({
     setGoogleCanWrite(Boolean(data.canWrite));
     setGoogleEmail(String(data.email || ""));
     setGoogleLastSyncedAt(data.lastSyncedAt ? String(data.lastSyncedAt) : null);
+    setLoadState((prev) => ({ ...prev, google: true }));
     return data;
   }, []);
 
@@ -399,10 +488,12 @@ export default function SchedulerDrawer({
     if (!open) return;
     loadOutlookStatus().catch((err) => {
       const message = err instanceof Error ? err.message : "Could not load Outlook sync status";
+      setLoadState((prev) => ({ ...prev, outlook: true }));
       setError(message);
     });
     loadGoogleStatus().catch((err) => {
       const message = err instanceof Error ? err.message : "Could not load Google Calendar sync status";
+      setLoadState((prev) => ({ ...prev, google: true }));
       setError(message);
     });
   }, [open, loadOutlookStatus, loadGoogleStatus]);
@@ -1079,9 +1170,6 @@ export default function SchedulerDrawer({
             ) : null}
           </div>
           {error ? <span className="scheduler-error-banner">{error}</span> : null}
-          {eventsLoading && !error ? (
-            <span className="scheduler-error-banner scheduler-error-banner-muted">Loading…</span>
-          ) : null}
         </div>
 
         {/* Body */}
@@ -1089,20 +1177,46 @@ export default function SchedulerDrawer({
           className={`scheduler-drawer-inner${embedded ? " scheduler-drawer-inner-embedded" : ""}`}
           style={embedded && sidebarHeight ? ({ ["--scheduler-sidebar-height" as string]: `${sidebarHeight}px` }) : undefined}
         >
+          {schedulerLoading ? (
+            <div className="scheduler-loading-toast" role="status" aria-live="polite">
+              <div className="scheduler-loading-toast-badge" aria-hidden="true">
+                <span className="scheduler-loading-toast-spinner" />
+              </div>
+              <div className="scheduler-loading-toast-head">
+                <span>Loading timetable</span>
+                <span>{schedulerLoadProgress}%</span>
+              </div>
+              <p className="scheduler-loading-toast-copy">{schedulerLoadLabel}</p>
+              <div className="scheduler-loading-toast-track" aria-hidden="true">
+                <span className="scheduler-loading-toast-bar" style={{ width: `${schedulerLoadProgress}%` }} />
+              </div>
+            </div>
+          ) : null}
           <aside ref={sidebarRef} className="scheduler-sidebar">
             <div className="scheduler-sidebar-pane">
+              <div className="scheduler-sidebar-section-header"><span>Quick Add</span></div>
               <div className="scheduler-quick-actions">
                 <button
                   className="scheduler-custom-add-btn scheduler-custom-add-btn-personal scheduler-quick-button"
                   onClick={() => setCustomModalDraft({ date: toISO(cursorDate), startTime: "09:00", endTime: "10:00", category: "Personal", lockCategory: true })}
                 >
-                  <span>+ Personal</span>
+                  <span className="scheduler-quick-button-icon" aria-hidden="true">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="8" r="4"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/>
+                    </svg>
+                  </span>
+                  <span>Personal</span>
                 </button>
                 <button
-                  className="scheduler-custom-add-btn scheduler-quick-button"
+                  className="scheduler-custom-add-btn scheduler-custom-add-btn-school scheduler-quick-button"
                   onClick={() => setCustomModalDraft({ date: toISO(cursorDate), startTime: "09:00", endTime: "10:00", category: "Meeting", lockCategory: false })}
                 >
-                  <span>+ School Event</span>
+                  <span className="scheduler-quick-button-icon" aria-hidden="true">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>
+                    </svg>
+                  </span>
+                  <span>School Event</span>
                 </button>
                 <Link
                   href="/lesson-pack?from=scheduler"
@@ -1111,8 +1225,8 @@ export default function SchedulerDrawer({
                   style={{ textDecoration: "none" }}
                 >
                   <span className="scheduler-quick-button-icon" aria-hidden="true">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 5v14M5 12h14" />
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
                     </svg>
                   </span>
                   <span>Add Lesson</span>
@@ -1153,10 +1267,18 @@ export default function SchedulerDrawer({
                 />
               </div>
 
+              <div className="scheduler-sidebar-section-header"><span>Calendar Sync</span></div>
               <div className="scheduler-sync-grid">
-                <div className="scheduler-sync-tile">
+                <div className="scheduler-sync-tile scheduler-sync-tile-outlook">
                   <div className="scheduler-sync-tile-head">
-                    <span className="scheduler-sync-tile-title">Outlook</span>
+                    <div className="scheduler-sync-tile-brand">
+                      <span className="scheduler-sync-tile-brand-icon scheduler-sync-tile-brand-icon-outlook" aria-hidden="true">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="2" y="5" width="20" height="16" rx="2"/><path d="M2 10h20"/><path d="M7 3v4M17 3v4"/>
+                        </svg>
+                      </span>
+                      <span className="scheduler-sync-tile-title">Outlook</span>
+                    </div>
                     <span className={`scheduler-sync-pill${outlookConnected ? " is-live" : ""}`}>
                       {outlookConnected ? "Connected" : "Not connected"}
                     </span>
@@ -1173,21 +1295,8 @@ export default function SchedulerDrawer({
                     onClick={() => { void handleSyncOutlook(); }}
                     disabled={syncingOutlook}
                   >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <rect x="9" y="4" width="11" height="16" rx="2" />
-                      <path d="M9 8h11" />
-                      <path d="M4 7h8v10H4z" />
-                      <path d="m4 12 4-3 4 3-4 3-4-3z" />
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/>
                     </svg>
                     {syncingOutlook
                       ? (outlookConnected ? "Refreshing…" : "Connecting…")
@@ -1213,9 +1322,19 @@ export default function SchedulerDrawer({
                   ) : null}
                 </div>
 
-                <div className="scheduler-sync-tile">
+                <div className="scheduler-sync-tile scheduler-sync-tile-google">
                   <div className="scheduler-sync-tile-head">
-                    <span className="scheduler-sync-tile-title">Google</span>
+                    <div className="scheduler-sync-tile-brand">
+                      <span className="scheduler-sync-tile-brand-icon scheduler-sync-tile-brand-icon-google" aria-hidden="true">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                        </svg>
+                      </span>
+                      <span className="scheduler-sync-tile-title">Google</span>
+                    </div>
                     <span className={`scheduler-sync-pill${googleConnected ? " is-live" : ""}`}>
                       {googleConnected ? "Connected" : "Not connected"}
                     </span>
@@ -1232,17 +1351,8 @@ export default function SchedulerDrawer({
                     onClick={() => { void handleSyncGoogleCalendar(); }}
                     disabled={syncingGoogle}
                   >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      aria-hidden="true"
-                    >
-                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
-                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/>
                     </svg>
                     {syncingGoogle
                       ? (googleConnected ? "Refreshing…" : "Connecting…")
@@ -1272,13 +1382,15 @@ export default function SchedulerDrawer({
           </aside>
 
           <WeekCalendar
-            events={calendarEvents}
+            events={filteredCalendarEvents}
             viewMode={viewMode}
             cursorDate={cursorDate}
             currentTerm={currentTerm}
             layoutVersion={sidebarHeight}
             showWeekends={showWeekends}
+            activeFilters={activeFilters}
             showViewToggle={false}
+            onFilterChange={setActiveFilters}
             onViewModeChange={setViewMode}
             onNavigate={handleNavigate}
             onGoToday={handleGoToday}

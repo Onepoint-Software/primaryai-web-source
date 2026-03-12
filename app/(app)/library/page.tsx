@@ -525,6 +525,9 @@ export default function LibraryPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [searchQuery, setSearchQuery] = useState("");
   const [status, setStatus] = useState("");
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [initialLoadProgress, setInitialLoadProgress] = useState(0);
+  const [initialLoadLabel, setInitialLoadLabel] = useState("Preparing library…");
   const [uploading, setUploading] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
@@ -552,9 +555,33 @@ export default function LibraryPage() {
   }, []);
 
   useEffect(() => {
-    void loadFolders();
-    void loadPacks();
-    void loadDocuments();
+    let cancelled = false;
+    const steps = [
+      { label: "Loading folders…", run: loadFolders },
+      { label: "Loading lesson packs…", run: loadPacks },
+      { label: "Loading documents…", run: loadDocuments },
+    ];
+
+    async function loadInitialLibrary() {
+      setInitialLoading(true);
+      setInitialLoadProgress(8);
+      for (let index = 0; index < steps.length; index += 1) {
+        const step = steps[index];
+        if (cancelled) return;
+        setInitialLoadLabel(step.label);
+        await step.run().catch(() => undefined);
+        if (cancelled) return;
+        setInitialLoadProgress(Math.round(((index + 1) / steps.length) * 100));
+      }
+      if (cancelled) return;
+      setInitialLoadLabel("Library ready");
+      setInitialLoading(false);
+    }
+
+    void loadInitialLibrary();
+    return () => {
+      cancelled = true;
+    };
   }, [loadFolders, loadPacks, loadDocuments]);
 
   // Escape key closes the preview drawer
@@ -867,7 +894,17 @@ export default function LibraryPage() {
             </div>
           </div>
 
-          {totalItems === 0 ? (
+          {initialLoading ? (
+            <div className="lib-loading-state" role="status" aria-live="polite">
+              <div className="lib-loading-spinner" />
+              <p className="lib-loading-title">Loading library</p>
+              <p className="lib-loading-sub">{initialLoadLabel}</p>
+              <div className="lib-loading-progress" aria-hidden="true">
+                <span className="lib-loading-progress-bar" style={{ width: `${initialLoadProgress}%` }} />
+              </div>
+              <p className="lib-loading-meta">{initialLoadProgress}%</p>
+            </div>
+          ) : totalItems === 0 ? (
             <div className="lib-empty">
               <div className="lib-empty-icon"><IconFolder size={32} /></div>
               <p className="lib-empty-title">{selectedFolderId === ALL_ID ? "Your library is empty" : "This folder is empty"}</p>

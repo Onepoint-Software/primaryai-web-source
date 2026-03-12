@@ -172,6 +172,7 @@ function isAbortError(error: unknown) {
 }
 
 const DASHBOARD_CACHE_KEY = "pa_dashboard_summary_v2";
+const DASHBOARD_CALENDAR_REFRESH_KEY = "pa_dashboard_calendar_refresh_v1";
 
 function getMondayISO(d = new Date()) {
   const day = d.getDay();
@@ -1011,6 +1012,38 @@ export default function DashboardPage() {
     void refreshTasksFromApi(controller.signal);
     return () => controller.abort();
   }, [refreshTasksFromApi]);
+
+  useEffect(() => {
+    if (!email || typeof window === "undefined") return;
+    const refreshKey = `${DASHBOARD_CALENDAR_REFRESH_KEY}:${email.toLowerCase()}`;
+    if (sessionStorage.getItem(refreshKey)) return;
+    sessionStorage.setItem(refreshKey, String(Date.now()));
+
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch("/api/schedule/refresh-connected", {
+          method: "POST",
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data?.ok || controller.signal.aborted) return;
+
+        const refreshed = Boolean(data?.outlook?.refreshed) || Boolean(data?.google?.refreshed);
+        if (!refreshed) return;
+
+        setScheduleRefreshKey((value) => value + 1);
+        await refreshTasksFromApi(controller.signal);
+      } catch (error) {
+        if (!isAbortError(error)) {
+          sessionStorage.removeItem(refreshKey);
+        }
+      }
+    })();
+
+    return () => controller.abort();
+  }, [email, refreshTasksFromApi]);
 
   const handleScheduleMutation = useCallback(() => {
     setScheduleRefreshKey((k) => k + 1);

@@ -4703,6 +4703,7 @@ body:has(.lib-shell) .app-body {
 }
 
 /* Empty state */
+.lib-loading-state,
 .lib-empty {
   display: flex;
   flex-direction: column;
@@ -4712,6 +4713,58 @@ body:has(.lib-shell) .app-body {
   padding: 3rem 1.5rem;
   text-align: center;
   gap: 0.6rem;
+}
+
+.lib-loading-spinner {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-top-color: var(--accent);
+  animation: lib-spin 0.8s linear infinite;
+}
+
+.lib-loading-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.lib-loading-sub {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.lib-loading-progress {
+  width: min(320px, 100%);
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--field-bg) 88%, var(--surface) 12%);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin-top: 0.3rem;
+}
+
+.lib-loading-progress-bar {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 78%, white 22%) 0%, var(--accent) 100%);
+  transition: width 220ms ease;
+}
+
+.lib-loading-meta {
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+@keyframes lib-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .lib-empty-icon {
@@ -5168,6 +5221,96 @@ body:has(.lib-shell) .app-body {
   color: color-mix(in srgb, white 84%, var(--accent) 16%);
 }
 
+.scheduler-filter-dropdown {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.25rem;
+}
+
+.scheduler-filter-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.34rem 0.75rem;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
+}
+
+.scheduler-filter-dropdown-trigger:hover,
+.scheduler-filter-dropdown-trigger:focus-visible,
+.scheduler-filter-dropdown-trigger.is-open {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border) 70%);
+}
+
+.scheduler-filter-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  left: auto;
+  z-index: 80;
+  min-width: 210px;
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 18px 40px rgb(15 23 42 / 0.16);
+}
+
+.scheduler-filter-dropdown-option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 10px;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.scheduler-filter-dropdown-option:hover,
+.scheduler-filter-dropdown-option:focus-visible,
+.scheduler-filter-dropdown-option.is-active {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface) 88%);
+  color: var(--text);
+}
+
+.scheduler-filter-dropdown-check {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  border-radius: 10px;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.scheduler-filter-dropdown-check:hover,
+.scheduler-filter-dropdown-check.is-active {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface) 90%);
+}
+
+.scheduler-filter-dropdown-check input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
 .scheduler-close-btn {
   background: none;
   border: 1px solid var(--border);
@@ -5198,6 +5341,91 @@ body:has(.lib-shell) .app-body {
 
 .scheduler-error-banner-muted {
   color: var(--muted);
+}
+
+.scheduler-loading-toast {
+  position: absolute;
+  top: 6.5rem;
+  left: calc(50% + 6rem);
+  transform: translateX(-50%);
+  z-index: 24;
+  width: min(360px, calc(100% - 2rem));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 1rem 0.95rem;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border) 80%);
+  background:
+    radial-gradient(circle at top, rgb(var(--accent-rgb) / 0.1) 0%, transparent 55%),
+    rgb(255 255 255 / 0.76);
+  box-shadow: 0 18px 42px rgb(15 23 42 / 0.12);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  text-align: center;
+}
+
+.scheduler-loading-toast-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--accent) 18%, white 82%);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.scheduler-loading-toast-spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-top-color: var(--accent);
+  animation: scheduler-toast-spin 0.82s linear infinite;
+}
+
+.scheduler-loading-toast-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.scheduler-loading-toast-copy {
+  width: 100%;
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.scheduler-loading-toast-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--field-bg) 84%, var(--surface) 16%);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.scheduler-loading-toast-bar {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 74%, white 26%) 0%, var(--accent) 100%);
+  transition: width 180ms ease;
+}
+
+@keyframes scheduler-toast-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .scheduler-drawer-inner {
@@ -5257,10 +5485,30 @@ body:has(.lib-shell) .app-body {
   color: color-mix(in srgb, var(--muted) 88%, var(--text) 12%);
 }
 
+.scheduler-sidebar-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0 0.25rem;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--muted) 65%, transparent);
+}
+
+.scheduler-sidebar-section-header::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  opacity: 0.65;
+}
+
 .scheduler-quick-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.45rem;
+  gap: 0.5rem;
 }
 
 .scheduler-quick-actions > * {
@@ -5278,17 +5526,17 @@ body:has(.lib-shell) .app-body {
 .scheduler-quick-button {
   width: 100% !important;
   margin: 0 !important;
-  min-height: 38px;
-  padding: 0.6rem 0.72rem !important;
+  min-height: 48px;
+  padding: 0.65rem 0.85rem !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 0.45rem;
+  gap: 0.5rem;
   white-space: nowrap;
-  border-radius: 10px !important;
+  border-radius: 12px !important;
   border-width: 1px !important;
   text-align: center !important;
-  font-size: 0.72rem !important;
+  font-size: 0.73rem !important;
   font-weight: 700 !important;
   line-height: 1 !important;
   box-sizing: border-box;
@@ -5314,13 +5562,21 @@ body:has(.lib-shell) .app-body {
 .scheduler-sync-tile {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.5rem;
   min-width: 0;
-  padding: 0.72rem;
+  padding: 0.85rem;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 96%, transparent);
-  box-shadow: 0 10px 26px rgb(15 23 42 / 0.04);
+  box-shadow: 0 2px 8px rgb(15 23 42 / 0.06), 0 10px 26px rgb(15 23 42 / 0.04);
+}
+
+.scheduler-sync-tile-outlook {
+  border-color: rgb(0 120 212 / 0.25);
+}
+
+.scheduler-sync-tile-google {
+  border-color: rgb(66 133 244 / 0.25);
 }
 
 .scheduler-sync-tile-head {
@@ -5330,26 +5586,76 @@ body:has(.lib-shell) .app-body {
   gap: 0.5rem;
 }
 
+.scheduler-sync-tile-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.scheduler-sync-tile-brand-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.scheduler-sync-tile-brand-icon-outlook {
+  background: linear-gradient(145deg, #1a8cff 0%, #0078d4 55%, #005a9e 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgb(0 120 212 / 0.35);
+}
+
+.scheduler-sync-tile-brand-icon-google {
+  background: #fff;
+  border: 1px solid rgb(0 0 0 / 0.1);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.1);
+}
+
 .scheduler-sync-tile-title {
-  font-size: 0.74rem;
+  font-size: 0.78rem;
   font-weight: 700;
   color: var(--text);
 }
 
 .scheduler-sync-pill {
-  padding: 0.18rem 0.45rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
   border-radius: 999px;
-  background: rgb(148 163 184 / 0.14);
+  background: rgb(148 163 184 / 0.12);
+  border: 1px solid rgb(148 163 184 / 0.2);
   color: var(--muted);
-  font-size: 0.63rem;
+  font-size: 0.6rem;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.scheduler-sync-pill::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.5;
+  flex-shrink: 0;
 }
 
 .scheduler-sync-pill.is-live {
-  background: rgb(16 185 129 / 0.14);
+  background: rgb(16 185 129 / 0.12);
+  border-color: rgb(16 185 129 / 0.3);
   color: #047857;
+}
+
+.scheduler-sync-pill.is-live::before {
+  opacity: 1;
+  box-shadow: 0 0 4px rgb(16 185 129 / 0.6);
 }
 
 .scheduler-sync-tile-copy {
@@ -5416,12 +5722,12 @@ body:has(.lib-shell) .app-body {
   margin-bottom: 0;
   box-sizing: border-box;
   padding: 0.5rem 0.9rem;
-  border-radius: 999px;
-  border: 1px solid rgb(var(--accent-rgb) / 0.32);
-  background: rgb(var(--accent-rgb) / 0.1);
+  border-radius: 12px;
+  border: 1px solid rgb(var(--accent-rgb) / 0.28);
+  background: rgb(var(--accent-rgb) / 0.08);
   color: var(--text);
-  font-size: 0.76rem;
-  font-weight: 600;
+  font-size: 0.73rem;
+  font-weight: 700;
   font-family: inherit;
   cursor: pointer;
   letter-spacing: 0.01em;
@@ -5441,31 +5747,47 @@ body:has(.lib-shell) .app-body {
 }
 
 .scheduler-custom-add-btn-personal {
-  border-color: rgb(16 185 129 / 0.36);
-  background: rgb(16 185 129 / 0.11);
+  border-color: rgb(16 185 129 / 0.4);
+  background: rgb(16 185 129 / 0.12);
   color: #065f46;
 }
 
 .scheduler-custom-add-btn-personal:hover,
 .scheduler-custom-add-btn-personal:focus-visible {
-  border-color: rgb(16 185 129 / 0.6);
+  border-color: rgb(16 185 129 / 0.65);
   background: rgb(16 185 129 / 0.2);
   color: #064e3b;
+  box-shadow: 0 4px 12px rgb(16 185 129 / 0.18), inset 0 1px 0 rgba(255,255,255,0.2);
+}
+
+.scheduler-custom-add-btn-school {
+  border-color: rgb(99 102 241 / 0.38);
+  background: rgb(99 102 241 / 0.1);
+  color: var(--text);
+}
+
+.scheduler-custom-add-btn-school:hover,
+.scheduler-custom-add-btn-school:focus-visible {
+  border-color: rgb(99 102 241 / 0.65);
+  background: rgb(99 102 241 / 0.18);
+  color: var(--text);
+  box-shadow: 0 4px 12px rgb(99 102 241 / 0.18), inset 0 1px 0 rgba(255,255,255,0.2);
 }
 
 .scheduler-custom-add-btn-lesson {
-  border-color: rgba(79, 113, 152, 0.7);
-  background: linear-gradient(135deg, #4f7198 0%, #3d6080 100%);
-  color: #f0f6ff;
-  box-shadow: 0 2px 8px rgba(63, 96, 138, 0.28), inset 0 1px 0 rgba(255,255,255,0.15);
+  border-color: rgba(59, 96, 143, 0.65);
+  background: linear-gradient(135deg, #4f7198 0%, #2d5180 100%);
+  color: #eaf1fb;
+  box-shadow: 0 3px 12px rgba(45, 81, 128, 0.3), inset 0 1px 0 rgba(255,255,255,0.18);
+  text-shadow: 0 1px 1px rgba(0,0,0,0.18);
 }
 
 .scheduler-custom-add-btn-lesson:hover,
 .scheduler-custom-add-btn-lesson:focus-visible {
-  background: linear-gradient(135deg, #5a7da6 0%, #456788 100%);
-  border-color: rgba(79, 113, 152, 0.9);
+  background: linear-gradient(135deg, #5c82a8 0%, #3a638f 100%);
+  border-color: rgba(59, 96, 143, 0.9);
   color: #ffffff;
-  box-shadow: 0 3px 12px rgba(63, 96, 138, 0.38), inset 0 1px 0 rgba(255,255,255,0.2);
+  box-shadow: 0 5px 18px rgba(45, 81, 128, 0.4), inset 0 1px 0 rgba(255,255,255,0.22);
 }
 
 .scheduler-custom-sync-btn {
@@ -5477,17 +5799,17 @@ body:has(.lib-shell) .app-body {
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
-  padding: 0.48rem 0.9rem;
-  border-radius: 999px;
+  padding: 0.52rem 0.9rem;
+  border-radius: 10px;
   border: 1px solid var(--border-card);
   background: var(--surface);
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-weight: 500;
+  color: var(--text);
+  font-size: 0.73rem;
+  font-weight: 700;
   font-family: inherit;
   cursor: pointer;
   letter-spacing: 0.01em;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.07), inset 0 1px 0 rgba(255,255,255,0.12);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.15);
   transition: border-color 120ms ease, color 120ms ease, background 120ms ease, box-shadow 120ms ease, transform 80ms ease;
 }
 
@@ -5498,16 +5820,15 @@ body:has(.lib-shell) .app-body {
 }
 
 .scheduler-custom-sync-btn svg {
-  color: #3b82f6;
   flex-shrink: 0;
 }
 
 .scheduler-custom-sync-btn:hover,
 .scheduler-custom-sync-btn:focus-visible {
   color: var(--text);
-  border-color: rgb(var(--accent-rgb) / 0.4);
-  background: rgb(var(--accent-rgb) / 0.06);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.15);
+  border-color: rgb(var(--accent-rgb) / 0.45);
+  background: rgb(var(--accent-rgb) / 0.07);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.18);
 }
 
 .scheduler-custom-sync-btn:active {
@@ -5536,13 +5857,13 @@ body:has(.lib-shell) .app-body {
   width: calc(100% - 1.2rem);
   margin: 0.2rem 0.6rem 0.6rem;
   box-sizing: border-box;
-  padding: 0.38rem 0.9rem;
-  border-radius: 999px;
-  border: 1px solid rgb(var(--accent-rgb) / 0.2);
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
   background: transparent;
   color: var(--muted);
-  font-size: 0.71rem;
-  font-weight: 500;
+  font-size: 0.7rem;
+  font-weight: 600;
   font-family: inherit;
   cursor: pointer;
   letter-spacing: 0.01em;
@@ -5770,7 +6091,7 @@ body:has(.lib-shell) .app-body {
 .scheduler-cal-panel {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   min-height: 0;
   position: relative;
   min-width: 0;
@@ -5785,6 +6106,8 @@ body:has(.lib-shell) .app-body {
   padding: 0.65rem 1rem;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  position: relative;
+  z-index: 20;
 }
 
 .scheduler-week-btn {

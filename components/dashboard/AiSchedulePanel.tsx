@@ -56,9 +56,10 @@ function severityColor(s: string) {
 }
 
 const card: React.CSSProperties = {
-  borderRadius: "16px", border: "1px solid var(--border-card)",
-  background: "var(--surface)", padding: "1.1rem 1.1rem",
+  borderRadius: "18px", border: "1px solid var(--border-card)",
+  background: "var(--surface)", padding: "1.4rem 1.35rem",
   position: "relative", overflow: "hidden",
+  boxShadow: "0 4px 24px rgb(0 0 0 / 0.14), 0 1px 4px rgb(0 0 0 / 0.08)",
 };
 
 export default function AiSchedulePanel({ onScheduleChange }: { onScheduleChange?: () => void } = {}) {
@@ -266,16 +267,20 @@ export default function AiSchedulePanel({ onScheduleChange }: { onScheduleChange
   };
 
   const btnPrimary: React.CSSProperties = {
-    padding: "0.5rem 1.1rem", borderRadius: "10px", border: "none",
-    background: "var(--accent)", color: "var(--accent-text)",
-    fontSize: "0.84rem", fontFamily: "inherit", cursor: "pointer", fontWeight: 600,
+    display: "inline-flex", alignItems: "center", gap: "0.4rem",
+    padding: "0.58rem 1.25rem", borderRadius: "10px", border: "none",
+    background: "linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 75%, var(--accent-hover)) 100%)",
+    color: "var(--accent-text)", fontSize: "0.82rem", fontFamily: "inherit",
+    cursor: "pointer", fontWeight: 700, letterSpacing: "0.01em",
+    boxShadow: "0 2px 12px rgb(var(--accent-rgb) / 0.3), inset 0 1px 0 rgba(255,255,255,0.2)",
   };
 
   const btnGhost: React.CSSProperties = {
-    padding: "0.5rem 1rem", borderRadius: "10px",
-    border: "1.5px solid var(--border)", background: "var(--surface)",
-    color: "var(--text)", fontSize: "0.84rem", fontFamily: "inherit",
-    cursor: "pointer", fontWeight: 500,
+    display: "inline-flex", alignItems: "center", gap: "0.4rem",
+    padding: "0.58rem 1rem", borderRadius: "10px",
+    border: "1.5px solid var(--border)", background: "transparent",
+    color: "var(--text)", fontSize: "0.82rem", fontFamily: "inherit",
+    cursor: "pointer", fontWeight: 600,
   };
 
   const panelStack: React.CSSProperties = {
@@ -287,8 +292,9 @@ export default function AiSchedulePanel({ onScheduleChange }: { onScheduleChange
   const sectionCard: React.CSSProperties = {
     border: "1px solid var(--border)",
     borderRadius: "12px",
-    background: "color-mix(in srgb, var(--field-bg) 82%, transparent)",
-    padding: "0.85rem 0.9rem",
+    background: "color-mix(in srgb, var(--field-bg) 75%, transparent)",
+    padding: "0.95rem",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
   };
 
   const fieldLabel: React.CSSProperties = {
@@ -324,24 +330,42 @@ export default function AiSchedulePanel({ onScheduleChange }: { onScheduleChange
   };
 
   const previewCard: React.CSSProperties = {
-    padding: "0.55rem 0.75rem",
+    padding: "0.65rem 0.85rem",
     borderRadius: "10px",
     background: "var(--surface)",
     border: "1px solid var(--border)",
+    borderLeft: "3px solid rgb(var(--accent-rgb) / 0.5)",
   };
 
-  const tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: "summary", label: "Week Summary", icon: "📋" },
-    { id: "plan",    label: "Smart Plan",   icon: "✨" },
-    { id: "gaps",    label: "Gap Check",    icon: "🔍" },
-    { id: "term",    label: "Term Plan",    icon: "📅" },
+  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: "summary", label: "Week Summary", icon: (
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+        <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>
+      </svg>
+    )},
+    { id: "plan",    label: "Smart Plan", icon: (
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+        <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15z"/>
+      </svg>
+    )},
+    { id: "gaps",    label: "Gap Check", icon: (
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+    )},
+    { id: "term",    label: "Term Plan", icon: (
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+        <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+      </svg>
+    )},
   ];
 
   const successBox: React.CSSProperties = {
-    padding: "0.75rem 1rem", borderRadius: "10px",
+    display: "flex", alignItems: "center", gap: "0.6rem",
+    padding: "0.8rem 1rem", borderRadius: "12px",
     background: "color-mix(in srgb, #22c55e 10%, transparent)",
-    border: "1px solid color-mix(in srgb, #22c55e 30%, transparent)",
-    color: "#16a34a", fontSize: "0.84rem",
+    border: "1px solid color-mix(in srgb, #22c55e 28%, transparent)",
+    color: "#16a34a", fontSize: "0.83rem", fontWeight: 600,
   };
 
   const skeleton = (
@@ -355,39 +379,39 @@ export default function AiSchedulePanel({ onScheduleChange }: { onScheduleChange
   return (
     <div style={card}>
       {/* accent bar */}
-      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: "linear-gradient(90deg, var(--accent) 0%, transparent 80%)" }} />
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "4px", background: "linear-gradient(90deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 35%, transparent) 75%, transparent 100%)", borderRadius: "18px 18px 0 0" }} />
 
       {/* header */}
-      <div style={{ display: "flex", alignItems: "flex-start", gap: "0.7rem", marginBottom: "1rem" }}>
-        <div style={{ width: "30px", height: "30px", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", background: "rgb(var(--accent-rgb) / 0.1)", color: "var(--accent)", flexShrink: 0 }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" fill="currentColor" opacity="0.3"/>
-            <path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15z"/>
-            <path d="M6 14l.7 1.6L8.3 16l-1.6.7L6 18.3l-.7-1.6L3.7 16l1.6-.7L6 14z"/>
-          </svg>
-        </div>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.85rem", marginBottom: "1.2rem" }}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--accent)", flexShrink: 0 }}>
+          <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" fill="currentColor" opacity="0.25"/>
+          <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"/>
+          <path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15z"/>
+        </svg>
         <div style={{ minWidth: 0 }}>
-          <p style={{ margin: "0 0 0.15rem", fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--muted)" }}>
+          <p style={{ margin: "0 0 0.15rem", fontSize: "0.84rem", fontWeight: 700, color: "var(--text)", lineHeight: 1.25 }}>
             AI Schedule Assistant
           </p>
-          <p style={{ margin: 0, fontSize: "0.82rem", lineHeight: 1.5, color: "var(--muted)" }}>
-            Summarise your week, build a plan, spot gaps, or turn a term document into a schedule.
+          <p style={{ margin: 0, fontSize: "0.76rem", lineHeight: 1.5, color: "var(--muted)" }}>
+            Summarise your week, build a plan, spot gaps, or schedule a full term.
           </p>
         </div>
       </div>
 
       {/* tabs */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.4rem", marginBottom: "1rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "0.45rem", marginBottom: "1.1rem" }}>
         {tabs.map((t) => (
           <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
-            padding: "0.55rem 0.7rem", borderRadius: "10px", fontSize: "0.74rem",
-            fontFamily: "inherit", cursor: "pointer", fontWeight: activeTab === t.id ? 700 : 500,
-            border: `1.5px solid ${activeTab === t.id ? "var(--accent)" : "var(--border)"}`,
-            background: activeTab === t.id ? "rgb(var(--accent-rgb) / 0.1)" : "var(--surface)",
-            color: activeTab === t.id ? "var(--accent)" : "var(--text)",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem",
+            padding: "0.6rem 0.65rem", borderRadius: "11px", fontSize: "0.73rem",
+            fontFamily: "inherit", cursor: "pointer", fontWeight: activeTab === t.id ? 700 : 600,
+            border: activeTab === t.id ? "1.5px solid rgb(var(--accent-rgb) / 0.55)" : "1px solid var(--border)",
+            background: activeTab === t.id ? "rgb(var(--accent-rgb) / 0.12)" : "color-mix(in srgb, var(--surface) 80%, transparent)",
+            color: activeTab === t.id ? "var(--accent)" : "var(--muted)",
             textAlign: "center",
+            boxShadow: activeTab === t.id ? "0 2px 10px rgb(var(--accent-rgb) / 0.16), inset 0 1px 0 rgba(255,255,255,0.1)" : "none",
           }}>
-            {t.icon} {t.label}
+            {t.icon}{t.label}
           </button>
         ))}
       </div>
@@ -402,6 +426,7 @@ export default function AiSchedulePanel({ onScheduleChange }: { onScheduleChange
               <input type="date" value={summaryWeekStart} onChange={(e) => { setSummaryWeekStart(e.target.value); setSummary(null); }} style={{ ...inp, width: "auto" }} />
             </div>
             <button onClick={() => void loadSummary()} disabled={summaryLoading} style={{ ...btnPrimary, opacity: summaryLoading ? 0.6 : 1 }}>
+              {!summaryLoading && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"/></svg>}
               {summaryLoading ? "Summarising…" : summary ? "Refresh" : "Summarise my week"}
             </button>
             </div>
@@ -435,7 +460,7 @@ export default function AiSchedulePanel({ onScheduleChange }: { onScheduleChange
       {/* ── SMART PLAN ── */}
       {activeTab === "plan" && (
         <div style={panelStack}>
-          {planDone && <div style={successBox}>Events added to your schedule.</div>}
+          {planDone && <div style={successBox}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M20 6L9 17l-5-5"/></svg>Events added to your schedule.</div>}
           <div style={sectionCard}>
             <div style={{ ...panelStack, gap: "0.75rem" }}>
             <div>
@@ -458,6 +483,7 @@ export default function AiSchedulePanel({ onScheduleChange }: { onScheduleChange
           </div>
           {planError && <p style={{ margin: 0, fontSize: "0.82rem", color: "#ef4444" }}>{planError}</p>}
           <button onClick={() => void handleSmartPlan()} disabled={planLoading || !planDesc.trim()} style={{ ...btnPrimary, alignSelf: "flex-start", opacity: (planLoading || !planDesc.trim()) ? 0.6 : 1 }}>
+            {!planLoading && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15z"/></svg>}
             {planLoading ? "Generating…" : "Generate plan"}
           </button>
           {planEvents && planEvents.length > 0 && (
@@ -475,6 +501,7 @@ export default function AiSchedulePanel({ onScheduleChange }: { onScheduleChange
               </div>
               <div style={controlRow}>
                 <button onClick={() => void commitPlanEvents()} disabled={planCommitting} style={{ ...btnPrimary, opacity: planCommitting ? 0.6 : 1 }}>
+                  {!planCommitting && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>}
                   {planCommitting ? "Adding…" : `Add ${planEvents.length} events to schedule`}
                 </button>
                 <button onClick={() => setPlanEvents(null)} style={btnGhost}>Discard</button>
@@ -493,6 +520,7 @@ export default function AiSchedulePanel({ onScheduleChange }: { onScheduleChange
           </p>
           </div>
           <button onClick={() => void loadGaps()} disabled={gapsLoading} style={{ ...btnPrimary, alignSelf: "flex-start", opacity: gapsLoading ? 0.6 : 1 }}>
+            {!gapsLoading && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>}
             {gapsLoading ? "Analysing…" : gaps ? "Re-analyse" : "Check for gaps"}
           </button>
           {gapsLoading && skeleton}
@@ -531,7 +559,7 @@ export default function AiSchedulePanel({ onScheduleChange }: { onScheduleChange
       {/* ── TERM PLAN ── */}
       {activeTab === "term" && (
         <div style={panelStack}>
-          {termDone && <div style={successBox}>Term plan added to your schedule.</div>}
+          {termDone && <div style={successBox}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M20 6L9 17l-5-5"/></svg>Term plan added to your schedule.</div>}
           <div style={{ ...sectionCard, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.6rem" }}>
             <div>
               <label style={fieldLabel}>Term start</label>
@@ -552,7 +580,8 @@ export default function AiSchedulePanel({ onScheduleChange }: { onScheduleChange
               style={{ ...inp, resize: "vertical", lineHeight: 1.5 }}
             />
             <input ref={termFileRef} type="file" style={{ display: "none" }} accept=".pdf,.docx,.doc,.xlsx,.csv,.txt,.md" onChange={(e) => void handleTermFileUpload(e.target.files)} />
-            <button onClick={() => termFileRef.current?.click()} disabled={termFileUploading} style={{ ...btnGhost, marginTop: "0.4rem", fontSize: "0.78rem", padding: "0.35rem 0.75rem" }}>
+            <button onClick={() => termFileRef.current?.click()} disabled={termFileUploading} style={{ ...btnGhost, marginTop: "0.5rem", fontSize: "0.76rem", padding: "0.38rem 0.75rem" }}>
+              {!termFileUploading && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>}
               {termFileUploading ? "Uploading…" : "Upload file"}
             </button>
             <p style={{ ...helperCopy, marginTop: "0.45rem" }}>Paste or upload a curriculum overview, then review the generated lessons before adding them.</p>
@@ -563,6 +592,7 @@ export default function AiSchedulePanel({ onScheduleChange }: { onScheduleChange
             disabled={termLoading || !termDocText.trim() || !termStart || !termEnd}
             style={{ ...btnPrimary, alignSelf: "flex-start", opacity: (termLoading || !termDocText.trim() || !termStart || !termEnd) ? 0.6 : 1 }}
           >
+            {!termLoading && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"/></svg>}
             {termLoading ? "Generating term plan…" : "Generate term plan"}
           </button>
           {termEvents && termEvents.length > 0 && (
@@ -585,6 +615,7 @@ export default function AiSchedulePanel({ onScheduleChange }: { onScheduleChange
               </div>
               <div style={controlRow}>
                 <button onClick={() => void commitTermEvents()} disabled={termCommitting} style={{ ...btnPrimary, opacity: termCommitting ? 0.6 : 1 }}>
+                  {!termCommitting && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>}
                   {termCommitting ? "Adding to schedule…" : `Add all ${termEvents.length} lessons`}
                 </button>
                 <button onClick={() => setTermEvents(null)} style={btnGhost}>Discard</button>

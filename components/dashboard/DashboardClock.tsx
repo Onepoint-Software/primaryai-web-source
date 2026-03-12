@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from "react";
 
+const INITIAL_CLOCK_TIME = new Date("2024-01-01T09:00:00.000Z");
+
 export function DashboardClock() {
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState(INITIAL_CLOCK_TIME);
 
   useEffect(() => {
+    setNow(new Date());
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);

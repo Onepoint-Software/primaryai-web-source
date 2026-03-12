@@ -20,6 +20,7 @@ export type ScheduleEvent = {
 };
 
 export type CalendarViewMode = "week" | "day" | "month" | "term";
+type SchedulerFilterKey = "personal" | "tasks" | "lesson_pack" | "school" | "imports";
 
 type CalendarTerm = {
   id: string;
@@ -35,7 +36,9 @@ type Props = {
   currentTerm?: CalendarTerm | null;
   layoutVersion?: number | null;
   showWeekends?: boolean;
+  activeFilters?: Set<SchedulerFilterKey>;
   showViewToggle?: boolean;
+  onFilterChange?: (filters: Set<SchedulerFilterKey>) => void;
   onViewModeChange: (mode: CalendarViewMode) => void;
   onNavigate: (delta: -1 | 1) => void;
   onGoToday: () => void;
@@ -161,7 +164,9 @@ export default function WeekCalendar({
   currentTerm = null,
   layoutVersion = null,
   showWeekends = false,
+  activeFilters,
   showViewToggle = true,
+  onFilterChange,
   onViewModeChange,
   onNavigate,
   onGoToday,
@@ -172,9 +177,22 @@ export default function WeekCalendar({
   onEventClick,
 }: Props) {
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const startSlotMarkerRef = useRef<HTMLDivElement | null>(null);
+  const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const todayISO = toISO(new Date());
+  const resolvedFilters = activeFilters ?? new Set<SchedulerFilterKey>();
+  const filterLabel = resolvedFilters.size === 0
+    ? "All events"
+    : `${resolvedFilters.size} filter${resolvedFilters.size === 1 ? "" : "s"}`;
+  const filterOptions: Array<{ key: SchedulerFilterKey; label: string }> = [
+    { key: "personal", label: "Personal Events" },
+    { key: "tasks", label: "Tasks" },
+    { key: "lesson_pack", label: "Lesson Packs" },
+    { key: "school", label: "School Events" },
+    { key: "imports", label: "Calendar Imports" },
+  ];
 
   const weekDays = useMemo(() => {
     if (viewMode === "day") {
@@ -386,6 +404,18 @@ export default function WeekCalendar({
     return () => window.cancelAnimationFrame(frame);
   }, [viewMode, cursorDate, showWeekends, layoutVersion]);
 
+  useEffect(() => {
+    if (!filterMenuOpen) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (filterMenuRef.current && target && !filterMenuRef.current.contains(target)) {
+        setFilterMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [filterMenuOpen]);
+
   const calendarGridStyle = useMemo(() => {
     if (viewMode === "day") {
       return { gridTemplateColumns: "66px minmax(0, 1fr)" };
@@ -411,6 +441,58 @@ export default function WeekCalendar({
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 2l4 4-4 4"/></svg>
         </button>
         <span className="scheduler-week-label">{navLabel}</span>
+        {onFilterChange ? (
+          <div className="scheduler-filter-dropdown" ref={filterMenuRef}>
+            <button
+              type="button"
+              className={`scheduler-filter-dropdown-trigger${filterMenuOpen ? " is-open" : ""}`}
+              onClick={() => setFilterMenuOpen((open) => !open)}
+              aria-haspopup="menu"
+              aria-expanded={filterMenuOpen}
+            >
+              <span>{filterLabel}</span>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M2.5 4.5 6 8l3.5-3.5" />
+              </svg>
+            </button>
+            {filterMenuOpen ? (
+              <div className="scheduler-filter-dropdown-menu" role="menu" aria-label="Filter timetable events">
+                <button
+                  type="button"
+                  className={`scheduler-filter-dropdown-option${resolvedFilters.size === 0 ? " is-active" : ""}`}
+                  onClick={() => {
+                    onFilterChange(new Set());
+                    setFilterMenuOpen(false);
+                  }}
+                >
+                  All events
+                </button>
+                {filterOptions.map((option) => {
+                  const checked = resolvedFilters.has(option.key);
+                  return (
+                    <label key={option.key} className={`scheduler-filter-dropdown-check${checked ? " is-active" : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          const next = new Set(resolvedFilters);
+                          if (next.has(option.key)) {
+                            next.delete(option.key);
+                            onFilterChange(next.size === 0 ? new Set() : next);
+                            return;
+                          }
+                          next.add(option.key);
+                          onFilterChange(next);
+                        }}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         {showViewToggle ? (
           <div style={{ marginLeft: "auto", display: "inline-flex", border: "1px solid var(--border)", borderRadius: "999px", overflow: "hidden" }}>
