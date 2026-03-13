@@ -18,6 +18,8 @@ type Props = {
   initialWeekEvents?: Array<{
     id: string;
     lesson_pack_id?: string;
+    linked_document_id?: string | null;
+    linked_document_name?: string | null;
     title: string;
     subject: string;
     year_group: string;
@@ -171,6 +173,8 @@ export default function SchedulerDrawer({
     (e: {
       id: string;
       lesson_pack_id?: string;
+      linked_document_id?: string | null;
+      linked_document_name?: string | null;
       title: string;
       subject: string;
       year_group: string;
@@ -184,6 +188,8 @@ export default function SchedulerDrawer({
     }): ScheduleEvent => ({
       id: String(e.id),
       lessonPackId: String(e.lesson_pack_id || ""),
+      linkedDocumentId: e.linked_document_id ? String(e.linked_document_id) : "",
+      linkedDocumentName: e.linked_document_name ? String(e.linked_document_name) : "",
       title: String(e.title || ""),
       subject: String(e.subject || ""),
       yearGroup: String(e.year_group || ""),
@@ -220,6 +226,7 @@ export default function SchedulerDrawer({
   } | null>(null);
   const [editEventId, setEditEventId] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<ScheduleEvent | null>(null);
+  const [downloadingAttachment, setDownloadingAttachment] = useState(false);
   const [saving, setSaving] = useState(false);
   const [generatingPack, setGeneratingPack] = useState(false);
   const [generatePackError, setGeneratePackError] = useState("");
@@ -799,6 +806,8 @@ export default function SchedulerDrawer({
       const normalised = {
         id: e.id,
         lessonPackId: e.lesson_pack_id,
+        linkedDocumentId: e.linked_document_id ?? "",
+        linkedDocumentName: e.linked_document_name ?? "",
         title: e.title,
         subject: e.subject,
         yearGroup: e.year_group,
@@ -1064,6 +1073,39 @@ export default function SchedulerDrawer({
     if (!selectedEvent?.lessonPackId) return "/lesson-pack";
     return `/lesson-pack?id=${encodeURIComponent(selectedEvent.lessonPackId)}`;
   }, [selectedEvent]);
+  const selectedEventDocumentHref = useMemo(() => {
+    if (!selectedEvent?.linkedDocumentId) return "";
+    return `/api/library/documents/${encodeURIComponent(selectedEvent.linkedDocumentId)}`;
+  }, [selectedEvent]);
+
+  async function handleDownloadSelectedAttachment() {
+    if (!selectedEvent?.linkedDocumentId || !selectedEventDocumentHref || downloadingAttachment) return;
+
+    setDownloadingAttachment(true);
+    setError("");
+    try {
+      const res = await fetch(selectedEventDocumentHref, { credentials: "same-origin" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data?.error === "string" ? data.error : "Could not download attachment.");
+      }
+
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = selectedEvent.linkedDocumentName || "attachment";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+      setSelectedEvent(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not download attachment.");
+    } finally {
+      setDownloadingAttachment(false);
+    }
+  }
 
   function openEditForEvent(event: ScheduleEvent) {
     if (isImportedCalendarEvent(event)) return;
@@ -1489,6 +1531,17 @@ export default function SchedulerDrawer({
                     <Link href={selectedEventHref} className="scheduler-modal-confirm" onClick={() => setSelectedEvent(null)}>
                       Open Full Lesson Pack
                     </Link>
+                  ) : null}
+                  {selectedEvent.linkedDocumentId ? (
+                    <button
+                      type="button"
+                      className="scheduler-modal-confirm"
+                      onClick={() => void handleDownloadSelectedAttachment()}
+                      disabled={downloadingAttachment}
+                      style={{ opacity: downloadingAttachment ? 0.7 : 1 }}
+                    >
+                      Open Attachment{selectedEvent.linkedDocumentName ? `: ${selectedEvent.linkedDocumentName}` : ""}
+                    </button>
                   ) : null}
                 </div>
               </div>

@@ -104,7 +104,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const { data: beforeEvent } = await supabase
     .from("lesson_schedule")
-    .select("id,title,subject,year_group,scheduled_date,start_time,end_time,notes,event_type,event_category,external_source,outlook_event_id,google_event_id")
+    .select("id,title,subject,year_group,scheduled_date,start_time,end_time,notes,event_type,event_category,external_source,outlook_event_id,google_event_id,linked_document_id,linked_document_name")
     .eq("id", id)
     .eq("user_id", session.userId)
     .maybeSingle();

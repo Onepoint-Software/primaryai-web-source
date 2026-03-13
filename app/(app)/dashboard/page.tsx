@@ -40,6 +40,8 @@ function normaliseLibraryItems(rawItems: unknown): LibraryItem[] {
 type ScheduleEvent = {
   id: string;
   lesson_pack_id?: string;
+  linked_document_id?: string | null;
+  linked_document_name?: string | null;
   title: string;
   subject: string;
   year_group: string;

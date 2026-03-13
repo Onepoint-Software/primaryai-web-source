@@ -47,7 +47,7 @@ export async function GET() {
       .limit(20),
     supabase
       .from("lesson_schedule")
-      .select("id,lesson_pack_id,title,subject,year_group,scheduled_date,start_time,end_time,notes,event_type,event_category")
+      .select("id,lesson_pack_id,title,subject,year_group,scheduled_date,start_time,end_time,notes,event_type,event_category,linked_document_id,linked_document_name")
       .eq("user_id", session.userId)
       .gte("scheduled_date", weekStart)
       .lt("scheduled_date", weekEnd)
@@ -55,7 +55,7 @@ export async function GET() {
       .order("start_time", { ascending: true }),
     supabase
       .from("lesson_schedule")
-      .select("id,lesson_pack_id,title,subject,year_group,scheduled_date,start_time,end_time,notes,event_type,event_category")
+      .select("id,lesson_pack_id,title,subject,year_group,scheduled_date,start_time,end_time,notes,event_type,event_category,linked_document_id,linked_document_name")
       .eq("user_id", session.userId)
       .gte("scheduled_date", todayIso)
       .lte("scheduled_date", upcomingEnd)

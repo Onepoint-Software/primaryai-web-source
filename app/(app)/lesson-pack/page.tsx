@@ -63,6 +63,18 @@ const SUBJECT_GROUPS = [
   { label: "Modern Foreign Languages", subjects: ["French", "Spanish", "German", "Mandarin", "Modern Foreign Languages"] },
 ];
 
+function todayIso() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function fileNameWithoutExtension(name: string) {
+  return String(name || "").replace(/\.[^.]+$/, "").trim();
+}
+
 function isPack(r: LessonPackResponse): r is LessonPack {
   return !("error" in r);
 }
@@ -265,6 +277,20 @@ export default function LessonPackPage() {
   const [contextError, setContextError] = useState("");
   const [contextParsing, setContextParsing] = useState(false);
   const [contextChars, setContextChars] = useState(0);
+  const [uploadLessonOpen, setUploadLessonOpen] = useState(false);
+  const [uploadLessonSaving, setUploadLessonSaving] = useState(false);
+  const [uploadLessonError, setUploadLessonError] = useState("");
+  const [uploadLessonFile, setUploadLessonFile] = useState<File | null>(null);
+  const [uploadLessonDraft, setUploadLessonDraft] = useState({
+    yearGroup: "",
+    subject: "",
+    topic: "",
+    title: "",
+    scheduledDate: "",
+    startTime: "09:00",
+    endTime: "10:00",
+    notes: "",
+  });
   const [settingsChecklist, setSettingsChecklist] = useState({
     ealPercent: false,
     pupilPremiumPercent: false,
@@ -630,6 +656,89 @@ export default function LessonPackPage() {
     }
   }
 
+  function openUploadLessonModal() {
+    setUploadLessonDraft({
+      yearGroup: form.year_group || "",
+      subject: form.subject || "",
+      topic: form.topic || "",
+      title: form.topic.trim() || "Uploaded lesson",
+      scheduledDate: todayIso(),
+      startTime: "09:00",
+      endTime: "10:00",
+      notes: "",
+    });
+    setUploadLessonFile(null);
+    setUploadLessonError("");
+    setUploadLessonOpen(true);
+  }
+
+  async function handleUploadOwnLesson(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!uploadLessonDraft.yearGroup || !uploadLessonDraft.subject || !uploadLessonDraft.topic.trim()) {
+      setUploadLessonError("Complete year group, subject, and topic.");
+      return;
+    }
+    if (!uploadLessonFile) {
+      setUploadLessonError("Choose a lesson file to upload.");
+      return;
+    }
+    if (!uploadLessonDraft.scheduledDate) {
+      setUploadLessonError("Choose a date for the lesson event.");
+      return;
+    }
+    if (uploadLessonDraft.startTime >= uploadLessonDraft.endTime) {
+      setUploadLessonError("End time must be after start time.");
+      return;
+    }
+
+    setUploadLessonSaving(true);
+    setUploadLessonError("");
+
+    try {
+      const uploadData = new FormData();
+      uploadData.append("file", uploadLessonFile);
+
+      const uploadRes = await fetch("/api/library/documents", {
+        method: "POST",
+        body: uploadData,
+      });
+      const uploadJson = await uploadRes.json().catch(() => ({}));
+      if (!uploadRes.ok || !uploadJson?.document?.id) {
+        throw new Error(uploadJson?.error || "Could not upload the lesson file.");
+      }
+
+      const scheduleRes = await fetch("/api/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventType: "custom",
+          eventCategory: "Uploaded Lesson",
+          title: uploadLessonDraft.title.trim() || uploadLessonDraft.topic.trim() || fileNameWithoutExtension(uploadLessonFile.name),
+          subject: uploadLessonDraft.subject,
+          yearGroup: uploadLessonDraft.yearGroup,
+          scheduledDate: uploadLessonDraft.scheduledDate,
+          startTime: uploadLessonDraft.startTime,
+          endTime: uploadLessonDraft.endTime,
+          notes: uploadLessonDraft.notes.trim() || null,
+          linkedDocumentId: String(uploadJson.document.id),
+          linkedDocumentName: String(uploadJson.document.name || uploadLessonFile.name),
+        }),
+      });
+      const scheduleJson = await scheduleRes.json().catch(() => ({}));
+      if (!scheduleRes.ok || !scheduleJson?.ok) {
+        throw new Error(scheduleJson?.error || "Could not create the lesson event.");
+      }
+
+      setUploadLessonOpen(false);
+      setUploadLessonFile(null);
+      setToast("Uploaded lesson added to your timetable.");
+    } catch (err) {
+      setUploadLessonError(err instanceof Error ? err.message : "Could not upload your lesson.");
+    } finally {
+      setUploadLessonSaving(false);
+    }
+  }
+
   const pack = result && isPack(result) ? result : null;
   const errorMsg = result && !isPack(result) ? (result as { error: string }).error : null;
   const classNotesRemaining = Math.max(0, MIN_CLASS_NOTES_CHARS - classNotesLength);
@@ -788,49 +897,78 @@ export default function LessonPackPage() {
 
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="nav-btn-cta"
-            style={{
-              width: "100%",
-              justifyContent: "center",
-              padding: "0.85rem 1.5rem",
-              fontSize: "0.92rem",
-              borderRadius: "12px",
-              opacity: loading ? 0.72 : 1,
-              gap: "0.6rem",
-              background: loading ? undefined : "linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 75%, var(--accent-hover)) 100%)",
-              boxShadow: loading ? undefined : "0 2px 16px rgb(var(--accent-rgb) / 0.32), inset 0 1px 0 rgba(255,255,255,0.18)",
-            }}
-          >
-            {loading ? (
-              <>
-                <span style={{
-                  width: "14px",
-                  height: "14px",
-                  border: "2px solid currentColor",
-                  borderTopColor: "transparent",
-                  borderRadius: "50%",
-                  display: "inline-block",
-                  animation: "spin 0.65s linear infinite",
-                  flexShrink: 0,
-                }} />
-                Generating your lesson pack…
-              </>
-            ) : (
-              <>
-                {profileLoaded && (
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                    <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" fill="currentColor" opacity="0.3"/>
-                    <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"/>
-                    <path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15z"/>
-                  </svg>
-                )}
-                {!profileLoaded ? "Loading your profile…" : "Generate Lesson Pack"}
-              </>
-            )}
-          </button>
+          <div style={{ display: "grid", gap: "0.8rem", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)", alignItems: "stretch" }}>
+            <button
+              type="submit"
+              disabled={loading}
+              className="nav-btn-cta"
+              style={{
+                width: "100%",
+                justifyContent: "center",
+                padding: "0.85rem 1.5rem",
+                fontSize: "0.92rem",
+                borderRadius: "12px",
+                opacity: loading ? 0.72 : 1,
+                gap: "0.6rem",
+                background: loading ? undefined : "linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 75%, var(--accent-hover)) 100%)",
+                boxShadow: loading ? undefined : "0 2px 16px rgb(var(--accent-rgb) / 0.32), inset 0 1px 0 rgba(255,255,255,0.18)",
+              }}
+            >
+              {loading ? (
+                <>
+                  <span style={{
+                    width: "14px",
+                    height: "14px",
+                    border: "2px solid currentColor",
+                    borderTopColor: "transparent",
+                    borderRadius: "50%",
+                    display: "inline-block",
+                    animation: "spin 0.65s linear infinite",
+                    flexShrink: 0,
+                  }} />
+                  Generating your lesson pack…
+                </>
+              ) : (
+                <>
+                  {profileLoaded && (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                      <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" fill="currentColor" opacity="0.3"/>
+                      <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"/>
+                      <path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15z"/>
+                    </svg>
+                  )}
+                  {!profileLoaded ? "Loading your profile…" : "Generate Lesson Pack"}
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              className="button secondary"
+              onClick={openUploadLessonModal}
+              style={{
+                width: "100%",
+                justifyContent: "center",
+                padding: "0.85rem 1.5rem",
+                fontSize: "0.92rem",
+                borderRadius: "12px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.55rem",
+                border: "1px solid rgb(var(--accent-rgb) / 0.18)",
+                background: "linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, rgb(var(--accent-rgb) / 0.04)) 0%, var(--surface) 100%)",
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              Upload My Own Lesson
+            </button>
+          </div>
+          <p style={{ margin: "0.65rem 0 0", fontSize: "0.79rem", color: "var(--muted)", lineHeight: 1.5 }}>
+            Generate a new PrimaryAI pack, or upload a lesson you created elsewhere and add it to your timetable as an attached event.
+          </p>
           {profileLoaded && !canGenerate && (
             <div
               className="auth-message is-error"
@@ -983,6 +1121,150 @@ export default function LessonPackPage() {
           )}
         </div>
       )}
+
+      {uploadLessonOpen ? (
+        <div className="scheduler-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget && !uploadLessonSaving) setUploadLessonOpen(false); }}>
+          <div className="scheduler-modal">
+            <button
+              type="button"
+              className="scheduler-modal-x"
+              aria-label="Close"
+              onClick={() => { if (!uploadLessonSaving) setUploadLessonOpen(false); }}
+            >
+              ×
+            </button>
+            <div>
+              <span className="scheduler-modal-subject-chip">Upload your own lesson</span>
+              <h2 className="scheduler-modal-title">Create a scheduled lesson with attachment</h2>
+              <p className="scheduler-modal-date">Your file will be saved to Library Documents and linked to a timetable event.</p>
+            </div>
+
+            <form onSubmit={handleUploadOwnLesson} style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+              <div className="scheduler-modal-fields">
+                <div className="scheduler-modal-field">
+                  <label className="scheduler-modal-label">Year group</label>
+                  <select
+                    className="scheduler-modal-input"
+                    value={uploadLessonDraft.yearGroup}
+                    onChange={(e) => setUploadLessonDraft((prev) => ({ ...prev, yearGroup: e.target.value }))}
+                  >
+                    <option value="">Select year group…</option>
+                    {YEAR_GROUPS.map((yg) => (
+                      <option key={yg} value={yg}>{yg}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="scheduler-modal-field">
+                  <label className="scheduler-modal-label">Subject</label>
+                  <select
+                    className="scheduler-modal-input"
+                    value={uploadLessonDraft.subject}
+                    onChange={(e) => setUploadLessonDraft((prev) => ({ ...prev, subject: e.target.value }))}
+                  >
+                    <option value="">Select subject…</option>
+                    {SUBJECT_GROUPS.map((group) => (
+                      <optgroup key={group.label} label={group.label}>
+                        {group.subjects.map((subject) => (
+                          <option key={subject} value={subject}>{subject}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="scheduler-modal-field">
+                <label className="scheduler-modal-label">Topic</label>
+                <input
+                  className="scheduler-modal-input"
+                  value={uploadLessonDraft.topic}
+                  onChange={(e) => setUploadLessonDraft((prev) => ({ ...prev, topic: e.target.value }))}
+                  placeholder="e.g. Fractions, persuasive writing, rivers…"
+                />
+              </div>
+
+              <div className="scheduler-modal-field">
+                <label className="scheduler-modal-label">Lesson title</label>
+                <input
+                  className="scheduler-modal-input"
+                  value={uploadLessonDraft.title}
+                  onChange={(e) => setUploadLessonDraft((prev) => ({ ...prev, title: e.target.value }))}
+                  placeholder="e.g. Fractions lesson 3"
+                />
+              </div>
+
+              <div className="scheduler-modal-field">
+                <label className="scheduler-modal-label">Lesson file</label>
+                <input
+                  type="file"
+                  className="scheduler-modal-input"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setUploadLessonFile(file);
+                    if (file && !uploadLessonDraft.title.trim()) {
+                      setUploadLessonDraft((prev) => ({ ...prev, title: fileNameWithoutExtension(file.name) }));
+                    }
+                  }}
+                />
+                <p style={{ margin: "0.4rem 0 0", fontSize: "0.77rem", color: "var(--muted)" }}>
+                  {uploadLessonFile ? uploadLessonFile.name : "Choose a PDF, Word doc, slides deck, or other lesson file."}
+                </p>
+              </div>
+
+              <div className="scheduler-modal-fields">
+                <div className="scheduler-modal-field">
+                  <label className="scheduler-modal-label">Date</label>
+                  <input
+                    type="date"
+                    className="scheduler-modal-input"
+                    value={uploadLessonDraft.scheduledDate}
+                    onChange={(e) => setUploadLessonDraft((prev) => ({ ...prev, scheduledDate: e.target.value }))}
+                  />
+                </div>
+                <div className="scheduler-modal-field">
+                  <label className="scheduler-modal-label">Start time</label>
+                  <input
+                    type="time"
+                    className="scheduler-modal-input"
+                    value={uploadLessonDraft.startTime}
+                    onChange={(e) => setUploadLessonDraft((prev) => ({ ...prev, startTime: e.target.value }))}
+                  />
+                </div>
+                <div className="scheduler-modal-field">
+                  <label className="scheduler-modal-label">End time</label>
+                  <input
+                    type="time"
+                    className="scheduler-modal-input"
+                    value={uploadLessonDraft.endTime}
+                    onChange={(e) => setUploadLessonDraft((prev) => ({ ...prev, endTime: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="scheduler-modal-field">
+                <label className="scheduler-modal-label">Notes (optional)</label>
+                <textarea
+                  className="scheduler-modal-notes"
+                  value={uploadLessonDraft.notes}
+                  onChange={(e) => setUploadLessonDraft((prev) => ({ ...prev, notes: e.target.value }))}
+                  placeholder="Anything you want attached to this uploaded lesson event…"
+                />
+              </div>
+
+              {uploadLessonError ? <p className="scheduler-modal-error">{uploadLessonError}</p> : null}
+
+              <div className="scheduler-modal-actions">
+                <button type="button" className="scheduler-modal-cancel" onClick={() => setUploadLessonOpen(false)} disabled={uploadLessonSaving}>
+                  Cancel
+                </button>
+                <button type="submit" className="scheduler-modal-confirm" disabled={uploadLessonSaving}>
+                  {uploadLessonSaving ? "Uploading…" : "Create event with attachment"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
 
       {/* ── Result ── */}
       {pack && (

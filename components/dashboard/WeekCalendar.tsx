@@ -7,6 +7,8 @@ import { ScheduleEventIcon } from "@/lib/schedule-event-icon";
 export type ScheduleEvent = {
   id: string;
   lessonPackId: string;
+  linkedDocumentId?: string;
+  linkedDocumentName?: string;
   title: string;
   subject: string;
   yearGroup: string;

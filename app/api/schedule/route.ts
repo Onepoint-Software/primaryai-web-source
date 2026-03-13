@@ -116,6 +116,8 @@ export async function POST(req: Request) {
     notes,
     eventType,
     eventCategory,
+    linkedDocumentId,
+    linkedDocumentName,
     repeat,
     repeatUntil,
   } = body ?? {};
@@ -179,6 +181,8 @@ export async function POST(req: Request) {
     notes: notes ?? null,
     event_type: resolvedEventType,
     event_category: resolvedEventType === "custom" ? String(eventCategory || "").trim() || null : null,
+    linked_document_id: typeof linkedDocumentId === "string" && linkedDocumentId.trim() ? linkedDocumentId.trim() : null,
+    linked_document_name: typeof linkedDocumentName === "string" && linkedDocumentName.trim() ? linkedDocumentName.trim() : null,
   }));
 
   const { data, error } = await supabase
