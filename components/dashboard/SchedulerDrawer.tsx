@@ -367,7 +367,7 @@ export default function SchedulerDrawer({
   useEffect(() => {
     if (!open) return;
     setLoadState(createSchedulerLoadState(initialWeekEvents.length > 0));
-  }, [open, initialWeekEvents.length]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -1307,8 +1307,13 @@ export default function SchedulerDrawer({
                   <div className="scheduler-sync-tile-head">
                     <div className="scheduler-sync-tile-brand">
                       <span className="scheduler-sync-tile-brand-icon scheduler-sync-tile-brand-icon-outlook" aria-hidden="true">
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="2" y="5" width="20" height="16" rx="2"/><path d="M2 10h20"/><path d="M7 3v4M17 3v4"/>
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path d="M10 4.5 18.8 6v12L10 19.5z" fill="#0A5FB4" />
+                          <path d="M18.8 6H22v12h-3.2z" fill="#1976D2" />
+                          <path d="M18.8 6 14.7 9.4H22z" fill="#2490FF" opacity="0.9" />
+                          <path d="M18.8 18 14.7 14.6H22z" fill="#0B66C3" opacity="0.96" />
+                          <path d="M4 8.4 10 7.25v9.5L4 15.6z" fill="#0358A7" />
+                          <path d="M7.15 10.05c1.55 0 2.58 1.21 2.58 2.95 0 1.75-1.03 2.95-2.58 2.95-1.56 0-2.65-1.2-2.65-2.95 0-1.74 1.09-2.95 2.65-2.95zm0 1.12c-.79 0-1.29.69-1.29 1.83 0 1.15.5 1.83 1.29 1.83.76 0 1.24-.68 1.24-1.83 0-1.14-.48-1.83-1.24-1.83z" fill="#ffffff" />
                         </svg>
                       </span>
                       <span className="scheduler-sync-tile-title">Outlook</span>

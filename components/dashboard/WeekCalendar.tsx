@@ -843,9 +843,6 @@ export default function WeekCalendar({
                               <ScheduleEventIcon subject={evt.subject} eventType={evt.eventType} eventCategory={evt.eventCategory} size={11} />
                             </span>
                             <span className="scheduler-event-title-row">
-                              {isImported && (
-                                <ScheduleEventIcon subject={evt.subject} eventType={evt.eventType} eventCategory={evt.eventCategory} size={11} style={{ marginRight: 3, flexShrink: 0 }} />
-                              )}
                               <span className="scheduler-event-title" style={{ textDecoration: isDoneTask ? "line-through" : undefined }}>{evt.title}</span>
                             </span>
                             <span className="scheduler-event-time" style={{ textDecoration: isDoneTask ? "line-through" : undefined }}>

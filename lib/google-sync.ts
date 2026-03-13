@@ -174,23 +174,6 @@ export async function disconnectGoogleCalendar(userId: string) {
     throw new Error("Could not remove imported Google events");
   }
 
-  const { error: clearWritebackError } = await supabase
-    .from("lesson_schedule")
-    .update({
-      google_event_id: null,
-      google_last_synced_at: null,
-    })
-    .eq("user_id", userId);
-
-  if (clearWritebackError) {
-    const missingColumns = isMissingColumnError(clearWritebackError, "google_event_id", "google_last_synced_at");
-    throw new Error(
-      missingColumns
-        ? "Google write-back is not ready yet. Run migration 023_google_calendar_sync.sql first."
-        : formatSupabaseError(clearWritebackError, "Could not clear Google sync state"),
-    );
-  }
-
   const { error: deleteConnectionError } = await supabase
     .from("google_calendar_connections")
     .delete()

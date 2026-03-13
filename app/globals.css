@@ -5633,9 +5633,12 @@ body:has(.lib-shell) .app-body {
 }
 
 .scheduler-sync-tile-brand-icon-outlook {
-  background: linear-gradient(145deg, #1a8cff 0%, #0078d4 55%, #005a9e 100%);
-  color: white;
-  box-shadow: 0 2px 8px rgb(0 120 212 / 0.35);
+  width: 36px;
+  height: 36px;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
 }
 
 .scheduler-sync-tile-brand-icon-google {
