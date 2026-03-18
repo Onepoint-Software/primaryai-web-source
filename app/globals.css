@@ -7520,6 +7520,10 @@ html[data-theme="light"] .dashboard-calendar {
   transition: transform 130ms ease, box-shadow 130ms ease, opacity 130ms ease;
 }
 
+.app-sidebar-link--no-tile {
+  box-shadow: none;
+}
+
 .app-sidebar-link:hover {
   transform: scale(0.96);
   opacity: 0.92;

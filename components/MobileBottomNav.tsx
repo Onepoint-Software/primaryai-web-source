@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { VscLibrary } from "react-icons/vsc";
 
 const NAV_ITEMS = [
   {
@@ -31,12 +32,7 @@ const NAV_ITEMS = [
   {
     href: "/library",
     label: "Library",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-      </svg>
-    ),
+    icon: <VscLibrary size={20} />,
   },
   {
     href: "/ai-planner",

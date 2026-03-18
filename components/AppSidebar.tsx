@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
+import { VscLibrary } from "react-icons/vsc";
+import { RiMoneyPoundCircleLine } from "react-icons/ri";
 import { DashboardCalendar } from "@/components/dashboard/DashboardCalendar";
 import { DashboardClock } from "@/components/dashboard/DashboardClock";
 
@@ -32,6 +34,12 @@ const NAV = [
     ),
   },
   {
+    href: "/library",
+    label: "Library",
+    bg: "#30B0C7",
+    icon: <VscLibrary size={26} />,
+  },
+  {
     href: "/ai-planner",
     label: "AI Planner",
     bg: "#BF5AF2",
@@ -40,17 +48,6 @@ const NAV = [
         <path d="M9.5 2 11 6.5 15.5 8 11 9.5 9.5 14 8 9.5 3.5 8 8 6.5 9.5 2z" />
         <path d="M19.5 11 20.5 13.5 23 14.5 20.5 15.5 19.5 18 18.5 15.5 16 14.5 18.5 13.5 19.5 11z" />
         <path d="M17 19l.7 1.8L19.5 21.5l-1.8.7L17 24l-.7-1.8L14.5 21.5l1.8-.7L17 19z" />
-      </svg>
-    ),
-  },
-  {
-    href: "/library",
-    label: "Library",
-    bg: "#30B0C7",
-    icon: (
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
       </svg>
     ),
   },
@@ -75,12 +72,7 @@ const NAV = [
     href: "/billing",
     label: "Billing",
     bg: "#30D158",
-    icon: (
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="1" y="4" width="22" height="16" rx="2.5" />
-        <line x1="1" y1="10" x2="23" y2="10" />
-      </svg>
-    ),
+    icon: <RiMoneyPoundCircleLine size={26} />,
   },
 ];
 
@@ -208,8 +200,8 @@ export default function AppSidebar() {
       <form action="/api/auth/logout" method="post" onSubmit={handleLogout} style={{ display: "contents" }}>
         <button
           type="submit"
-          className="app-sidebar-link"
-          style={{ background: "#FF3B30", color: "#fff" }}
+          className="app-sidebar-link app-sidebar-link--no-tile"
+          style={{ background: "transparent", color: "#FF3B30" }}
           aria-label="Sign out"
           title="Sign out"
           disabled={signingOut}
