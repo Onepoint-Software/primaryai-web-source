@@ -65,12 +65,33 @@ export function TermCountdownRing({ termName, termStartDate, termEndDate }: Prop
   const toastTimer          = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flashTimer          = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hourFlashTimer      = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const svgRef              = useRef<SVGSVGElement>(null);
+  const [confettiFlash, setConfettiFlash] = useState(false);
+  const confettiFlashTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Returns the centre of the stopwatch SVG as 0–1 viewport fractions for canvas-confetti
+  const getOrigin = useCallback(() => {
+    const el = svgRef.current;
+    if (!el) return { x: 0.5, y: 0.55 };
+    const r = el.getBoundingClientRect();
+    return {
+      x: (r.left + r.width / 2) / window.innerWidth,
+      y: (r.top  + r.height / 2) / window.innerHeight,
+    };
+  }, []);
+
+  const triggerButtonFlash = useCallback(() => {
+    if (confettiFlashTimer.current) clearTimeout(confettiFlashTimer.current);
+    setConfettiFlash(true);
+    confettiFlashTimer.current = setTimeout(() => setConfettiFlash(false), 1800);
+  }, []);
 
   const fireConfetti = useCallback(() => {
+    triggerButtonFlash();
     import("canvas-confetti").then(({ default: confetti }) => {
-      confetti({ particleCount: 100, spread: 80, origin: { y: 0.55 }, colors: RING_COLORS });
+      confetti({ particleCount: 100, spread: 80, origin: getOrigin(), colors: RING_COLORS });
     });
-  }, []);
+  }, [getOrigin, triggerButtonFlash]);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -162,10 +183,12 @@ export function TermCountdownRing({ termName, termStartDate, termEndDate }: Prop
   // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     if (prevDaysRef.current > 0 && schoolDaysRemaining === 0) {
+      triggerButtonFlash();
       import("canvas-confetti").then(({ default: confetti }) => {
-        confetti({ particleCount: 250, spread: 130, origin: { y: 0.5 }, colors: RING_COLORS });
-        setTimeout(() => confetti({ particleCount: 150, spread: 100, origin: { x: 0.15, y: 0.65 }, colors: RING_COLORS }), 400);
-        setTimeout(() => confetti({ particleCount: 150, spread: 100, origin: { x: 0.85, y: 0.65 }, colors: RING_COLORS }), 800);
+        const o = getOrigin();
+        confetti({ particleCount: 250, spread: 130, origin: o, colors: RING_COLORS });
+        setTimeout(() => confetti({ particleCount: 150, spread: 100, origin: { x: Math.max(0, o.x - 0.15), y: o.y }, colors: RING_COLORS }), 400);
+        setTimeout(() => confetti({ particleCount: 150, spread: 100, origin: { x: Math.min(1, o.x + 0.15), y: o.y }, colors: RING_COLORS }), 800);
       });
       showToast("🎓 Term's over! Have an amazing holiday!");
     }
@@ -210,15 +233,21 @@ export function TermCountdownRing({ termName, termStartDate, termEndDate }: Prop
   const dayFrac = Math.max(0, SCHOOL_END_SECS - Math.max(nowSecs, DAY_START_SECS)) / DAY_SECS_TOTAL;
   const minFrac = dayMinsRemaining / 60;   // minutes ring: e.g. 45/60
 
-  // Term remaining values (weeks + days)
-  const daysRemaining  = schoolDaysRemaining;
-  const weeksRemaining = schoolDaysRemaining / 5;
+  // Decompose remaining school days into whole weeks + remainder days
+  // e.g. 8 days → 1 week + 3 days (never double-counts)
+  const fullWeeksRemaining = Math.floor(schoolDaysRemaining / 5);
+  const daysRemainder      = schoolDaysRemaining % 5;
+
+  const totalWeeks = Math.floor(totalSchoolDays / 5);
 
   // RINGS order: [S, M, H, D, W] → indices 0..4
-  const remaining = [daySecsRemaining, dayMinsRemaining, dayHoursRemaining, daysRemaining, weeksRemaining];
+  const remaining = [daySecsRemaining, dayMinsRemaining, dayHoursRemaining, daysRemainder, fullWeeksRemaining];
 
-  // Per-ring fracs: S→secFrac, M→minFrac, H→dayFrac, D→termFrac, W→termFrac
-  const ringFracs = [secFrac, minFrac, dayFrac, termFrac, termFrac];
+  // Per-ring fracs
+  const weekFrac  = totalWeeks > 0 ? fullWeeksRemaining / totalWeeks : 0;
+  // days ring: 0–4 remainder days, fill relative to max possible remainder (4)
+  const dayWkFrac = daysRemainder / 4;
+  const ringFracs = [secFrac, minFrac, dayFrac, dayWkFrac, weekFrac];
 
   const fc = isDark ? {
     base:    ["rgba(10,10,16,1)", "rgba(18,16,26,0.96)", "rgba(6,6,12,1)"],
@@ -284,10 +313,11 @@ export function TermCountdownRing({ termName, termStartDate, termEndDate }: Prop
                   {groupRings.map(({ key, label, color }) => {
                     const vi = RINGS.findIndex(r => r.key === key);
                     const rem = remaining[vi];
-                    const fmt = (v: number) => key === "W" ? v.toFixed(1) : v.toLocaleString();
+                    const fmt = (v: number) => Math.round(v).toLocaleString();
+                    const lbl = key === "D" ? "Days" : key === "W" ? "Weeks" : label;
                     return (
                       <React.Fragment key={key}>
-                        <span className="term-countdown-legend-unit">{label}</span>
+                        <span className="term-countdown-legend-unit">{lbl}</span>
                         <span className="term-countdown-legend-val" style={{ color }}>{fmt(rem)}</span>
                       </React.Fragment>
                     );
@@ -300,7 +330,7 @@ export function TermCountdownRing({ termName, termStartDate, termEndDate }: Prop
       </div>
 
       {/* Right: rings */}
-      <svg viewBox="0 0 200 200" className="term-countdown-svg" aria-label="Term countdown">
+      <svg ref={svgRef} viewBox="0 0 200 200" className="term-countdown-svg" aria-label="Term countdown">
         <defs>
           {/* Dial face base — pearl in light mode, dark in dark mode */}
           <radialGradient id="pearl-base" cx="48%" cy="42%" r="56%">
@@ -409,6 +439,15 @@ export function TermCountdownRing({ termName, termStartDate, termEndDate }: Prop
             <stop offset="50%"  stopColor="#ef4444" />
             <stop offset="80%"  stopColor="#dc2626" />
             <stop offset="100%" stopColor="#7f1d1d" />
+          </linearGradient>
+
+          {/* Gold button gradient — for confetti burst on all buttons */}
+          <linearGradient id="btn-gold" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="#78350f" />
+            <stop offset="20%"  stopColor="#d97706" />
+            <stop offset="50%"  stopColor="#fbbf24" />
+            <stop offset="80%"  stopColor="#d97706" />
+            <stop offset="100%" stopColor="#78350f" />
           </linearGradient>
 
           {/* Sweep edge softener — gentle blur to dissolve sector/fan boundaries */}
@@ -606,40 +645,45 @@ export function TermCountdownRing({ termName, termStartDate, termEndDate }: Prop
 
         {/* Crown button */}
         <rect x={93} y={-14} width={14} height={10} rx={3.5}
-          fill="url(#btn-steel)" filter="url(#steel-grain)" />
+          fill={confettiFlash ? "url(#btn-gold)" : "url(#btn-steel)"} filter="url(#steel-grain)"
+          style={{ transition: "fill 0.15s ease" }} />
         <rect x={93} y={-14} width={14} height={10} rx={3.5}
-          fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth={0.7} />
+          fill="none" stroke={confettiFlash ? "rgba(217,119,6,0.7)" : "rgba(0,0,0,0.55)"} strokeWidth={0.7} />
         <rect x={93} y={-14} width={14} height={10} rx={3.5}
           fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth={0.4} />
+        {confettiFlash && (
+          <rect x={93} y={-14} width={14} height={10} rx={3.5}
+            fill="rgba(251,191,36,0.4)" style={{ filter: "blur(2px)" }} />
+        )}
 
-        {/* Left side button (~10:30) — flashes green on the hour */}
+        {/* Left side button (~10:30) — flashes green on the hour, gold on confetti */}
         <rect x={-4.5} y={-5.5} width={9} height={11} rx={2.5}
-          fill={hourFlash ? "url(#btn-green)" : "url(#btn-steel)"}
+          fill={confettiFlash ? "url(#btn-gold)" : hourFlash ? "url(#btn-green)" : "url(#btn-steel)"}
           filter="url(#steel-grain)"
           transform="translate(35 22) rotate(230)"
           style={{ transition: "fill 0.15s ease" }} />
         <rect x={-4.5} y={-5.5} width={9} height={11} rx={2.5}
-          fill="none" stroke={hourFlash ? "rgba(0,150,0,0.7)" : "rgba(0,0,0,0.55)"} strokeWidth={0.7}
+          fill="none" stroke={confettiFlash ? "rgba(217,119,6,0.7)" : hourFlash ? "rgba(0,150,0,0.7)" : "rgba(0,0,0,0.55)"} strokeWidth={0.7}
           transform="translate(35 22) rotate(230)" />
-        {hourFlash && (
+        {(hourFlash || confettiFlash) && (
           <rect x={-4.5} y={-5.5} width={9} height={11} rx={2.5}
-            fill="rgba(34,197,94,0.35)"
+            fill={confettiFlash ? "rgba(251,191,36,0.4)" : "rgba(34,197,94,0.35)"}
             transform="translate(35 22) rotate(230)"
             style={{ filter: "blur(2px)" }} />
         )}
 
-        {/* Right side button (~1:30) — flashes red on the minute */}
+        {/* Right side button (~1:30) — flashes red on the minute, gold on confetti */}
         <rect x={-4.5} y={-5.5} width={9} height={11} rx={2.5}
-          fill={minuteFlash ? "url(#btn-red)" : "url(#btn-steel)"}
+          fill={confettiFlash ? "url(#btn-gold)" : minuteFlash ? "url(#btn-red)" : "url(#btn-steel)"}
           filter="url(#steel-grain)"
           transform="translate(165 22) rotate(310)"
           style={{ transition: "fill 0.15s ease" }} />
         <rect x={-4.5} y={-5.5} width={9} height={11} rx={2.5}
-          fill="none" stroke={minuteFlash ? "rgba(180,0,0,0.7)" : "rgba(0,0,0,0.55)"} strokeWidth={0.7}
+          fill="none" stroke={confettiFlash ? "rgba(217,119,6,0.7)" : minuteFlash ? "rgba(180,0,0,0.7)" : "rgba(0,0,0,0.55)"} strokeWidth={0.7}
           transform="translate(165 22) rotate(310)" />
-        {minuteFlash && (
+        {(minuteFlash || confettiFlash) && (
           <rect x={-4.5} y={-5.5} width={9} height={11} rx={2.5}
-            fill="rgba(239,68,68,0.35)"
+            fill={confettiFlash ? "rgba(251,191,36,0.4)" : "rgba(239,68,68,0.35)"}
             transform="translate(165 22) rotate(310)"
             style={{ filter: "blur(2px)" }} />
         )}
