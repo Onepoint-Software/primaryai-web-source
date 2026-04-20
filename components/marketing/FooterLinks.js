@@ -1,17 +1,33 @@
 import Link from "next/link";
 
-export default function FooterLinks() {
+const LANDING_STYLE = {
+  background: "rgba(0,0,0,0.65)",
+  color: "rgba(255,255,255,0.65)",
+  textShadow: "0 1px 3px rgba(0,0,0,0.8)",
+  position: "relative",
+  zIndex: 10,
+};
+
+const LANDING_LINK_STYLE = {
+  color: "rgba(255,255,255,0.85)",
+};
+
+export default function FooterLinks({ landing = false }) {
   return (
-    <footer className="site-footer-links" aria-label="Footer links">
-      <Link href="/guide">User Guide</Link>
+    <footer
+      className="site-footer-links"
+      style={landing ? LANDING_STYLE : undefined}
+      aria-label="Footer links"
+    >
+      <Link href="/guide" style={landing ? LANDING_LINK_STYLE : undefined}>User Guide</Link>
       <span aria-hidden="true">|</span>
-      <Link href="/legal/privacy">Privacy Policy</Link>
+      <Link href="/legal/privacy" style={landing ? LANDING_LINK_STYLE : undefined}>Privacy Policy</Link>
       <span aria-hidden="true">|</span>
-      <Link href="/contact">Contact</Link>
+      <Link href="/contact" style={landing ? LANDING_LINK_STYLE : undefined}>Contact</Link>
       <span aria-hidden="true">|</span>
-      <Link href="/survey">Share Your Thoughts</Link>
+      <Link href="/survey" style={landing ? LANDING_LINK_STYLE : undefined}>Share Your Thoughts</Link>
       <span aria-hidden="true">|</span>
-      <Link href="/survey-responses">Survey Responses</Link>
+      <Link href="/survey-responses" style={landing ? LANDING_LINK_STYLE : undefined}>Survey Responses</Link>
     </footer>
   );
 }

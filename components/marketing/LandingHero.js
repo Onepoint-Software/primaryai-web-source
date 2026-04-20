@@ -1,27 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 
-const LAPTOP_FRAMES = [
-  { src: "/images/landing/home-laptop-1.png", width: 2838, height: 1484 },
-  { src: "/images/landing/home-laptop-2.png", width: 2862, height: 1476 },
-  { src: "/images/landing/home-laptop-3.png", width: 2838, height: 1450 },
-  { src: "/images/landing/home-laptop-4.png", width: 2794, height: 1448 },
-  { src: "/images/landing/home-laptop-5.png", width: 2806, height: 1470 },
-];
-
-const MOBILE_FRAMES = [
-  { src: "/images/landing/home-mobile-fit-5.png", width: 429, height: 916 },
-  { src: "/images/landing/home-mobile-fit-6.png", width: 436, height: 930 },
-  { src: "/images/landing/home-mobile-fit-7.png", width: 428, height: 914 },
-];
-
 const SALES_POINTS = [
-  "Build your planning around your own time with an AI designed to protect your week.",
-  "Curriculum-aligned planning tailored to your class’s individual needs.",
-  "Trusted by teachers and shaped by real classroom practice.",
+  "Plan lessons, tasks and personal commitments in one clear week.",
+  "Create curriculum-aligned lesson packs from the context you already have.",
+  "Keep resources, notes and schedule decisions connected.",
 ];
 
 const CheckIcon = () => (
@@ -35,10 +20,7 @@ export default function LandingHero() {
   const [sparkleLive, setSparkleLive] = useState(false);
   const [pageLoaded, setPageLoaded] = useState(false);
   const [minimumSplashElapsed, setMinimumSplashElapsed] = useState(false);
-  const [laptopFrameIndex, setLaptopFrameIndex] = useState(0);
-  const [mobileFrameIndex, setMobileFrameIndex] = useState(0);
   const showSplash = !(pageLoaded && minimumSplashElapsed);
-  const activeMobileFrame = MOBILE_FRAMES[mobileFrameIndex] ?? MOBILE_FRAMES[0];
 
   useEffect(() => {
     const minimumTimer = window.setTimeout(() => {
@@ -58,19 +40,6 @@ export default function LandingHero() {
     return () => {
       window.clearTimeout(minimumTimer);
       window.removeEventListener("load", handleLoaded);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (LAPTOP_FRAMES.length <= 1 && MOBILE_FRAMES.length <= 1) {
-      return undefined;
-    }
-    const intervalId = window.setInterval(() => {
-      setLaptopFrameIndex((current) => (current + 1) % LAPTOP_FRAMES.length);
-      setMobileFrameIndex((current) => (current + 1) % MOBILE_FRAMES.length);
-    }, 6200);
-    return () => {
-      window.clearInterval(intervalId);
     };
   }, []);
 
@@ -195,7 +164,7 @@ export default function LandingHero() {
           </div>
 
           <h2 className="landing-sales-headline">
-            The week planner that puts your life first and your teaching in order.
+            Plan your teaching week around real life.
           </h2>
 
           <ul className="landing-sales-points">
@@ -208,62 +177,8 @@ export default function LandingHero() {
               </li>
             ))}
           </ul>
-
-          <div className="landing-cta-row">
-            <Link className="landing-thoughts-btn" href="/survey">
-              Your Thoughts
-            </Link>
-          </div>
         </div>
 
-        <div className="landing-device-showcase" aria-label="PrimaryAI dashboard preview">
-          <div className="landing-laptop-wrap">
-            <div className="landing-laptop-screen-shell">
-              <div className="landing-laptop-screen">
-                <div className="landing-frame-stage">
-                  {LAPTOP_FRAMES.map((frame, index) => (
-                    <Image
-                      key={frame.src}
-                      className={`landing-frame-image landing-frame-layer${index === laptopFrameIndex ? " is-active" : ""}`}
-                      src={frame.src}
-                      alt="PrimaryAI current dashboard screen"
-                      width={frame.width}
-                      height={frame.height}
-                      priority={index === 0}
-                      loading="eager"
-                      quality={85}
-                      sizes="(max-width: 760px) 100vw, (max-width: 1200px) 60vw, 700px"
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="landing-laptop-base">
-              <div className="landing-laptop-notch" />
-            </div>
-          </div>
-
-          <div className="landing-phone-back-glow" aria-hidden="true" />
-          <div className="landing-phone-wrap">
-            <div className="landing-phone-notch" />
-            <div className="landing-phone-screen">
-              <div className="landing-frame-stage landing-frame-stage-phone">
-                <Image
-                  key={activeMobileFrame.src}
-                  className="landing-frame-image landing-frame-image-phone landing-frame-layer is-active"
-                  src={activeMobileFrame.src}
-                  alt="PrimaryAI current dashboard screen on mobile"
-                  width={activeMobileFrame.width}
-                  height={activeMobileFrame.height}
-                  priority
-                  loading="eager"
-                  quality={85}
-                  sizes="(max-width: 760px) 26vw, 160px"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       <p className={`landing-footer-note${showSplash ? " landing-content-hidden" : ""}`}>
