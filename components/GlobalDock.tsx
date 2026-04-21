@@ -7,9 +7,10 @@ import { VscLibrary } from "react-icons/vsc";
 import { RiMoneyPoundCircleLine } from "react-icons/ri";
 import { FaPenClip } from "react-icons/fa6";
 
-// Routes that already render AppSidebar themselves — GlobalDock hides on these
-// so we never double-render the dock.
+// Routes that already render AppSidebar — GlobalDock hides on these to avoid double-docks
 const APP_PREFIXES = ["/dashboard", "/lesson-pack", "/library", "/notes", "/ai-planner", "/settings", "/account", "/billing"];
+// Public/marketing pages where the dock should not appear at all
+const PUBLIC_EXACT = ["/", "/survey", "/stories"];
 
 const NAV = [
   {
@@ -99,8 +100,9 @@ export default function GlobalDock() {
   const accountItem = NAV.find((item) => item.href === "/account") ?? null;
   const primaryNavItems = NAV.filter((item) => item.href !== "/account");
 
-  // Hide on app routes — those pages render AppSidebar themselves
-  const hidden = APP_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+  const hidden =
+    PUBLIC_EXACT.some((p) => path === p) ||
+    APP_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 
   function handleDockPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     const dockEl = dockRef.current;

@@ -1700,6 +1700,17 @@ html[data-theme="light"] .survey-success {
   position: relative;
   isolation: isolate;
   overflow-x: hidden;
+  /* Flush nav to all edges, preview panel bleeds to the right */
+  padding-top: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.landing-page-wrap .top-nav {
+  margin-top: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 /* Scrim: anchors the copy while leaving the video readable on the right. */
@@ -1735,7 +1746,7 @@ html[data-theme="light"] .survey-success {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 3rem 3.5rem;
+  padding: 0 3rem 8vh;
   position: relative;
   z-index: 2;
 }
@@ -1743,7 +1754,7 @@ html[data-theme="light"] .survey-success {
 .landing-hero-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 3rem;
+  gap: 1.5rem;
   align-items: center;
 }
 
@@ -1825,12 +1836,14 @@ html[data-theme="light"] .survey-success {
   align-items: flex-start;
   justify-content: flex-start;
   gap: 0.85rem;
+  margin-top: -2rem;
   margin-bottom: 1.2rem;
 }
 
 .landing-title-row-splash {
   align-items: center;
   justify-content: center;
+  margin-top: 0;
   margin-bottom: 0;
   text-align: center;
 }
@@ -1903,6 +1916,14 @@ html[data-theme="light"] .landing-splash-screen .landing-title {
   transform: translateY(8%);
 }
 
+.landing-hero-grid .landing-education-icon {
+  top: -0.08em;
+}
+
+.landing-hero-grid .landing-education-icon svg {
+  transform: translateY(0);
+}
+
 @keyframes landingHandDraw {
   0% {
     stroke-dashoffset: 1;
@@ -1970,7 +1991,7 @@ html[data-theme="light"] .landing-hero-grid .landing-roof-stroke {
 
 .landing-sales-headline {
   max-width: 18ch;
-  margin: 0;
+  margin: 0 0 2.5rem;
   font-size: clamp(2rem, 3.4vw, 3.05rem);
   line-height: 1.04;
   letter-spacing: 0;
@@ -1980,10 +2001,10 @@ html[data-theme="light"] .landing-hero-grid .landing-roof-stroke {
 
 .landing-sales-points {
   list-style: none;
-  margin: 2rem 0 0;
+  margin: 0;
   padding: 0;
   display: grid;
-  gap: 1.1rem;
+  gap: 0.8rem;
   max-width: 38rem;
 }
 
@@ -2282,6 +2303,28 @@ html[data-theme="dark"] .landing-phone-back-glow {
   text-decoration: underline;
 }
 
+/* ── CTA block inside the right panel ──────────────── */
+.landing-panel-cta {
+  width: 100%;
+  padding: 1.5rem 2rem 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.75rem;
+  border-top: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.landing-panel-cta .landing-waitlist-heading {
+  font-size: clamp(1.1rem, 2vw, 1.4rem);
+  margin: 0;
+}
+
+.landing-panel-cta .landing-waitlist-text {
+  font-size: 0.875rem;
+  margin: 0;
+}
+
  /* ── Waitlist / pre-launch CTA ─────────────────────── */
 .landing-waitlist-cta {
   width: 100%;
@@ -2371,11 +2414,45 @@ html[data-theme="dark"] .landing-phone-back-glow {
   text-decoration: none;
 }
 
+.landing-waitlist-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  width: 100%;
+}
+
+.landing-waitlist-actions .landing-waitlist-btn {
+  width: 100%;
+  text-align: center;
+  justify-content: center;
+}
+
+.landing-waitlist-btn--secondary {
+  background: rgb(var(--accent-rgb) / 0.12);
+  color: var(--accent);
+  border-color: rgb(var(--accent-rgb) / 0.45);
+  box-shadow: none;
+  background-image: none;
+  transition: color 220ms ease, background 220ms ease, border-color 220ms ease,
+              box-shadow 220ms ease, transform 220ms ease;
+}
+.landing-waitlist-btn--secondary::after { display: none; }
+.landing-waitlist-btn--secondary:hover,
+.landing-waitlist-btn--secondary:focus-visible {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+  box-shadow: 0 6px 24px rgb(var(--accent-rgb) / 0.4);
+  transform: translateY(-2px) scale(1.02);
+}
+
 /* ── Hero split layout ────────────────────────── */
 .landing-split {
   flex: 1;
   display: flex;
+  align-items: stretch;
   min-height: 0;
+  padding-left: 0.9rem;
 }
 
 .landing-split-left {
@@ -2385,16 +2462,18 @@ html[data-theme="dark"] .landing-phone-back-glow {
 
 /* ── Device drawer panel ─────────────────────── */
 
-/* Outer wrapper — occupies the flex slot, clips the sliding card */
+/* Outer wrapper — full-height sticky column, clips the sliding card */
 .landing-panel-outer {
-  position: relative;
+  position: sticky;
+  top: 64px;
+  align-self: flex-start;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
   width: clamp(330px, 36vw, 500px);
-  overflow: hidden;
-  /* Extra bottom padding so the toggle pill is always visible below the card */
-  padding-bottom: 3.2rem;
+  height: calc(100dvh - 64px);
+  /* clip doesn't create a scroll container so sticky still works */
+  overflow: clip;
 }
 
 /* Card — the whole thing slides as a unit */
@@ -2402,12 +2481,15 @@ html[data-theme="dark"] .landing-phone-back-glow {
   position: relative;
   z-index: 1;
   width: 100%;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 2.5rem 2rem 1.8rem;
   border-left: 1px solid var(--border-card);
-  border-radius: 0 0 20px 20px;
+  border-radius: 0;
+  opacity: 0.88;
   background:
     linear-gradient(170deg,
       color-mix(in srgb, var(--surface) 88%, var(--accent) 12%) 0%,
@@ -2417,13 +2499,12 @@ html[data-theme="dark"] .landing-phone-back-glow {
     -6px 0 32px rgb(0 0 0 / 0.16),
     0 16px 48px rgb(var(--accent-rgb) / 0.07),
     inset 0 1px 0 rgb(var(--accent-rgb) / 0.18);
-  transform: translateY(0);
-  transition: transform 1.1s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: panelSlideIn 1.1s cubic-bezier(0.16, 1, 0.3, 1) 300ms both;
 }
 
-.landing-split-right.is-collapsed {
-  transform: translateY(-110%);
-  pointer-events: none;
+@keyframes panelSlideIn {
+  from { transform: translateY(-110%); }
+  to   { transform: translateY(0); }
 }
 
 /* Accent gradient stripe at the very top */
@@ -3269,6 +3350,14 @@ html[data-theme="light"] .auth-input::placeholder {
 
   .landing-education-icon svg {
     transform: translateY(10%);
+  }
+
+  .landing-hero-grid .landing-education-icon {
+    top: 0.06em;
+  }
+
+  .landing-hero-grid .landing-education-icon svg {
+    transform: translateY(3%);
   }
 
   .landing-title {

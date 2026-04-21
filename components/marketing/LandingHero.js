@@ -181,12 +181,6 @@ export default function LandingHero() {
 
       </div>
 
-      <p className={`landing-footer-note${showSplash ? " landing-content-hidden" : ""}`}>
-        Launching Spring 2026 | Design & Build by{" "}
-        <a className="landing-onepoint-link" href="https://www.onepointconsult.com">
-          onepointconsult.com
-        </a>
-      </p>
     </section>
   );
 }
