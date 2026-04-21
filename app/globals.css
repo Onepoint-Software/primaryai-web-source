@@ -770,14 +770,14 @@ a {
 }
 
 .nav-logo-link {
-  display: inline-flex;
+  display: flex;
+  flex-direction: row;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 0.45rem;
   text-decoration: none;
   color: var(--accent);
   flex-shrink: 0;
-  white-space: nowrap;
-  flex-wrap: nowrap;
   transition: opacity 180ms ease;
   justify-self: start;
 }
@@ -800,6 +800,7 @@ a {
   font-variation-settings: "wght" 100;
   letter-spacing: 0.04em;
   line-height: 1;
+  white-space: nowrap;
 }
 
 .nav-logo-orange {
@@ -1693,6 +1694,7 @@ html[data-theme="light"] .survey-success {
   object-fit: cover;
   z-index: -3;
   pointer-events: none;
+  will-change: transform;
 }
 
 .landing-page-wrap {
@@ -3446,13 +3448,19 @@ html[data-theme="light"] .auth-input::placeholder {
   }
 
   .landing-copy {
-    text-align: center;
-    margin-inline: auto;
+    text-align: left;
+    margin-inline: 0;
   }
 
   .landing-title-row {
-    align-items: center;
-    justify-content: center;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 0.6rem;
+  }
+
+  .landing-title-row {
+    display: none;
   }
 
   .landing-sales-headline {
@@ -7913,9 +7921,13 @@ a.scheduler-modal-confirm {
     padding: 0 1rem;
   }
 
-  /* Tighter nav on small phones */
+  /* Scale logo text to fit narrow screens — always single row */
   .nav-logo-text {
-    font-size: 1.25rem;
+    font-size: clamp(0.95rem, 5vw, 1.25rem);
+  }
+  .nav-logo-icon {
+    width: clamp(18px, 5vw, 26px);
+    height: clamp(18px, 5vw, 26px);
   }
 
   /* Ensure the drawer header wraps gracefully */

@@ -21,6 +21,7 @@
   z-index: -2;
   pointer-events: none;
   opacity: 0.45;
+  will-change: transform;
 }
 
 /* Dark scrim so card and list stay readable over the video */
@@ -1116,7 +1117,7 @@
   .steps { overflow-x: auto; padding-bottom: 4px; }
   .stepLabel { display: none; }
   .rowMeta { display: none; }
-  .drawer { width: 100vw; min-width: unset; }
+  .drawer { width: 100vw; min-width: unset; top: 64px; height: calc(100dvh - 64px); }
   .drawerBody { padding: 1.5rem 1.25rem 3rem; }
 
   /* Move close button to the right and make it a full-height tap target */
