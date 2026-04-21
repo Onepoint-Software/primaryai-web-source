@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import BackgroundScene from "@/components/BackgroundScene";
 import PageLoader from "@/components/PageLoader";
 import GlobalDock from "@/components/GlobalDock";
+import CookieBanner from "@/components/CookieBanner";
 import { getAuthSession } from "@/lib/auth";
 
 const inter = Inter({
@@ -52,6 +53,9 @@ export default async function RootLayout({ children }) {
         </Suspense>
         {session && <GlobalDock />}
         {children}
+        <Suspense>
+          <CookieBanner />
+        </Suspense>
       </body>
     </html>
   );

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 export default function SignupForm({ next }) {
   const [submitting, setSubmitting] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
+  const [roleConfirmed, setRoleConfirmed] = useState(false);
   const timerRef = useRef(null);
 
   // Clean up timer if the component unmounts (page navigated away successfully)
@@ -53,6 +54,21 @@ export default function SignupForm({ next }) {
         />
       </div>
 
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "0.6rem", margin: "0.25rem 0 0.85rem" }}>
+        <input
+          id="role-confirm"
+          type="checkbox"
+          checked={roleConfirmed}
+          onChange={(e) => setRoleConfirmed(e.target.checked)}
+          required
+          style={{ marginTop: "2px", flexShrink: 0, accentColor: "var(--accent, #4f46e5)", cursor: "pointer" }}
+        />
+        <label htmlFor="role-confirm" style={{ fontSize: "0.78rem", color: "var(--muted, #94a3b8)", lineHeight: 1.45, cursor: "pointer" }}>
+          I confirm I am a qualified teacher or school staff member (aged 18+). I will not enter personal data about
+          individual pupils into PrimaryAI.
+        </label>
+      </div>
+
       {timedOut && (
         <p style={{ margin: "0 0 0.85rem", fontSize: "0.82rem", color: "#fc8181" }}>
           This is taking longer than expected. Please check your connection and try again.
@@ -62,14 +78,14 @@ export default function SignupForm({ next }) {
       <button
         className="auth-submit"
         type="submit"
-        disabled={submitting}
+        disabled={submitting || !roleConfirmed}
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           gap: "0.5rem",
-          opacity: submitting ? 0.75 : 1,
-          cursor: submitting ? "not-allowed" : "pointer",
+          opacity: submitting || !roleConfirmed ? 0.75 : 1,
+          cursor: submitting || !roleConfirmed ? "not-allowed" : "pointer",
           transition: "opacity 150ms ease",
         }}
       >

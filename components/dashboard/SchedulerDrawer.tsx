@@ -7,6 +7,7 @@ import PackList, { type PackItem } from "./PackList";
 import WeekCalendar, { type CalendarViewMode, type ScheduleEvent } from "./WeekCalendar";
 import ScheduleModal, { type ModalPayload } from "./ScheduleModal";
 import CustomEventModal from "./CustomEventModal";
+import PersonalEventModal from "./PersonalEventModal";
 import NotesPanel from "@/components/NotesPanel";
 import { DashboardCalendar } from "@/components/dashboard/DashboardCalendar";
 import { DashboardClock } from "@/components/dashboard/DashboardClock";
@@ -115,6 +116,100 @@ function addMinutes(time: string, mins: number): string {
   return `${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}`;
 }
 
+type PersonalEventRow = {
+  id: string;
+  title: string;
+  all_day: boolean;
+  event_date: string | null;
+  start_at: string | null;
+  end_at: string | null;
+  repeat_rule: string;
+  repeat_days: string[];
+  valid_from: string | null;
+  valid_to: string | null;
+  colour: string;
+  notes: string | null;
+};
+
+const DOW_MAP: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+
+function expandPersonalEvents(rows: PersonalEventRow[], from: string, to: string): ScheduleEvent[] {
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+  const results: ScheduleEvent[] = [];
+
+  for (const ev of rows) {
+    const windowFrom = ev.valid_from ? new Date(Math.max(new Date(ev.valid_from).getTime(), fromDate.getTime())) : fromDate;
+    const windowTo = ev.valid_to ? new Date(Math.min(new Date(ev.valid_to).getTime(), toDate.getTime())) : toDate;
+
+    if (ev.repeat_rule === "none" || !ev.repeat_rule) {
+      const dateStr = ev.event_date || (ev.start_at ? ev.start_at.slice(0, 10) : null);
+      if (!dateStr) continue;
+      if (dateStr < from || dateStr > to) continue;
+      results.push(personalRowToScheduleEvent(ev, dateStr));
+      continue;
+    }
+
+    for (let d = new Date(windowFrom); d <= windowTo; d.setDate(d.getDate() + 1)) {
+      const iso = toISO(d);
+      const dow = ["sun","mon","tue","wed","thu","fri","sat"][d.getDay()];
+
+      if (ev.repeat_rule === "daily") {
+        results.push(personalRowToScheduleEvent(ev, iso));
+      } else if (ev.repeat_rule === "weekly") {
+        const originDate = ev.event_date || (ev.start_at ? ev.start_at.slice(0, 10) : null);
+        if (originDate) {
+          const origin = new Date(originDate);
+          if (d.getDay() === origin.getDay()) {
+            results.push(personalRowToScheduleEvent(ev, iso));
+          }
+        }
+      } else if (ev.repeat_rule === "custom") {
+        if (Array.isArray(ev.repeat_days) && ev.repeat_days.includes(dow)) {
+          results.push(personalRowToScheduleEvent(ev, iso));
+        }
+      }
+    }
+  }
+
+  return results;
+}
+
+function personalRowToScheduleEvent(ev: PersonalEventRow, dateStr: string): ScheduleEvent {
+  const colourHex: Record<string, string> = {
+    teal: "#14b8a6", blue: "#3b82f6", purple: "#a855f7", pink: "#ec4899",
+    orange: "#f97316", green: "#22c55e", red: "#ef4444", yellow: "#eab308", grey: "#6b7280",
+  };
+
+  let startTime = "09:00";
+  let endTime = "10:00";
+  let allDay = Boolean(ev.all_day);
+
+  if (ev.start_at) {
+    const d = new Date(ev.start_at);
+    startTime = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+  if (ev.end_at) {
+    const d = new Date(ev.end_at);
+    endTime = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+
+  return {
+    id: `life-${ev.id}-${dateStr}`,
+    lessonPackId: "",
+    title: ev.title,
+    subject: `life:${ev.colour || "teal"}`,
+    yearGroup: "Personal",
+    eventType: "custom",
+    eventCategory: "personal",
+    scheduledDate: dateStr,
+    startTime,
+    endTime,
+    notes: ev.notes ?? "",
+    allDay,
+  };
+}
+
 function isImportedCalendarEvent(event?: Pick<ScheduleEvent, "eventType" | "eventCategory"> | null) {
   const category = String(event?.eventCategory || "").toLowerCase();
   return event?.eventType === "custom" && (category === "outlook_import" || category === "google_import");
@@ -172,6 +267,24 @@ export default function SchedulerDrawer({
   initialWeekEvents = [],
   displayName,
 }: Props) {
+  function detectClashes(date: string, startTime: string, endTime: string, excludeId?: string | null) {
+    const toMins = (t: string) => {
+      const [h, m] = String(t || "00:00").split(":").map(Number);
+      return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
+    };
+    const newStart = toMins(startTime);
+    const newEnd = toMins(endTime);
+    return calendarEvents.filter(
+      (e) =>
+        !e.allDay &&
+        e.scheduledDate === date &&
+        e.id !== excludeId &&
+        e.eventCategory !== "personal" &&
+        toMins(e.startTime) < newEnd &&
+        toMins(e.endTime) > newStart
+    ).map((e) => ({ title: e.title, time: `${e.startTime}–${e.endTime}` }));
+  }
+
   const mapApiEvent = useCallback(
     (e: {
       id: string;
@@ -188,6 +301,7 @@ export default function SchedulerDrawer({
       end_time: string;
       notes?: string | null;
       all_day?: boolean;
+      effort?: string | null;
     }): ScheduleEvent => ({
       id: String(e.id),
       lessonPackId: String(e.lesson_pack_id || ""),
@@ -203,6 +317,7 @@ export default function SchedulerDrawer({
       endTime: String(e.end_time || "").slice(0, 5),
       notes: typeof e.notes === "string" ? e.notes : "",
       allDay: Boolean(e.all_day),
+      effort: (e.effort === "low" || e.effort === "medium" || e.effort === "high") ? e.effort : null,
     }),
     [],
   );
@@ -213,6 +328,7 @@ export default function SchedulerDrawer({
     initialWeekEvents.map(mapApiEvent),
   );
   const [bankHolidayEvents, setBankHolidayEvents] = useState<ScheduleEvent[]>([]);
+  const [personalLifeEvents, setPersonalLifeEvents] = useState<ScheduleEvent[]>([]);
   const [terms, setTerms] = useState<UserTerm[]>([]);
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
   const [showWeekends, setShowWeekends] = useState(false);
@@ -227,6 +343,8 @@ export default function SchedulerDrawer({
     category?: string;
     lockCategory?: boolean;
   } | null>(null);
+  const [personalEventModalDate, setPersonalEventModalDate] = useState<string | null>(null);
+  const [savingPersonalEvent, setSavingPersonalEvent] = useState(false);
   const [editEventId, setEditEventId] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<ScheduleEvent | null>(null);
   const [downloadingAttachment, setDownloadingAttachment] = useState(false);
@@ -253,13 +371,33 @@ export default function SchedulerDrawer({
   const [loadState, setLoadState] = useState(() => createSchedulerLoadState(initialWeekEvents.length > 0));
   const [unscheduleDragOver, setUnscheduleDragOver] = useState(false);
   const [error, setError] = useState("");
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [dayTemplates, setDayTemplates] = useState<{ id: string; name: string; day_of_week: string; blocks: any[] }[]>([]);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [saveTemplateForm, setSaveTemplateForm] = useState<{ name: string; dayOfWeek: string } | null>(null);
+  const [applyTemplateId, setApplyTemplateId] = useState<string | null>(null);
+  const [applyTemplateDate, setApplyTemplateDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddInput, setQuickAddInput] = useState("");
+  const [quickAddParsed, setQuickAddParsed] = useState<{ title: string; subject: string; year_group: string; scheduled_date: string; start_time: string; end_time: string } | null>(null);
+  const [quickAddSaving, setQuickAddSaving] = useState(false);
+  const [quickAddError, setQuickAddError] = useState("");
+  const [bulkShiftOpen, setBulkShiftOpen] = useState(false);
+  const [bulkShiftFrom, setBulkShiftFrom] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [bulkShiftTo, setBulkShiftTo] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [bulkShiftSaving, setBulkShiftSaving] = useState(false);
+  const [clashModal, setClashModal] = useState<{
+    clashes: { title: string; time: string }[];
+    onProceed: () => void;
+  } | null>(null);
   const currentTerm = useMemo(() => findCurrentTerm(terms, cursorDate), [terms, cursorDate]);
 
   useEffect(() => {
     onViewModeStateChange?.(viewMode);
   }, [onViewModeStateChange, viewMode]);
 
-  const calendarEvents = useMemo(() => [...events, ...bankHolidayEvents], [events, bankHolidayEvents]);
+  const calendarEvents = useMemo(() => [...events, ...bankHolidayEvents, ...personalLifeEvents], [events, bankHolidayEvents, personalLifeEvents]);
   const filteredCalendarEvents = useMemo(
     () => calendarEvents.filter((event) => matchesSchedulerFilter(event, activeFilters)),
     [activeFilters, calendarEvents],
@@ -417,8 +555,9 @@ export default function SchedulerDrawer({
     Promise.all([
       fetch(`/api/schedule?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { cache: "no-store", signal: controller.signal }).then((r) => r.json()),
       fetch(`/api/calendar/bank-holidays?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { cache: "no-store", signal: controller.signal }).then((r) => r.json()),
+      fetch(`/api/personal-events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { cache: "no-store", signal: controller.signal }).then((r) => r.json()).catch(() => ({ ok: false })),
     ])
-      .then(([data, bankHolidayData]) => {
+      .then(([data, bankHolidayData, personalEventsData]) => {
         if (controller.signal.aborted) return;
         if (data.ok && Array.isArray(data.events)) {
           setEvents(data.events.map(mapApiEvent));
@@ -427,6 +566,11 @@ export default function SchedulerDrawer({
           setBankHolidayEvents(bankHolidayData.events.map(mapApiEvent));
         } else {
           setBankHolidayEvents([]);
+        }
+        if (personalEventsData?.ok && Array.isArray(personalEventsData.events)) {
+          setPersonalLifeEvents(expandPersonalEvents(personalEventsData.events, from, to));
+        } else {
+          setPersonalLifeEvents([]);
         }
       })
       .catch(() => {
@@ -663,16 +807,36 @@ export default function SchedulerDrawer({
 
     const rows = Array.from(byDate.entries()).map(([date, evts]) => {
       const dayLabel = prettyDate(date);
-      const items = evts.map((e) =>
-        `<tr>
+      const items = evts.map((e) => {
+        const effortDot = e.effort
+          ? `<span class="effort-dot effort-${e.effort}" title="Marking load: ${e.effort}"></span>`
+          : "";
+        const isTask = e.eventCategory === "task" || e.eventCategory === "task_done";
+        const isPersonal = e.eventCategory === "personal";
+        const typeTag = isTask
+          ? `<span class="tag tag-task">${e.eventCategory === "task_done" ? "Done" : "Task"}</span>`
+          : isPersonal
+          ? `<span class="tag tag-personal">Personal</span>`
+          : "";
+        return `<tr>
           <td class="time">${e.startTime}–${e.endTime}</td>
-          <td class="title">${e.title}</td>
+          <td class="title">${effortDot}${e.title}${typeTag}</td>
           <td class="meta">${[e.subject, e.yearGroup].filter(Boolean).join(" · ")}</td>
           <td class="notes">${e.notes ? e.notes : ""}</td>
-        </tr>`
-      ).join("");
+        </tr>`;
+      }).join("");
       return `<tr class="day-header"><td colspan="4">${dayLabel}</td></tr>${items}`;
     }).join("");
+
+    const legend = `<div class="legend">
+      <span class="legend-label">Marking load:</span>
+      <span class="legend-item"><span class="effort-dot effort-low"></span> Low</span>
+      <span class="legend-item"><span class="effort-dot effort-medium"></span> Medium</span>
+      <span class="legend-item"><span class="effort-dot effort-high"></span> High</span>
+      <span class="legend-sep">|</span>
+      <span class="legend-item"><span class="tag tag-task">Task</span> Personal task</span>
+      <span class="legend-item"><span class="tag tag-personal">Personal</span> Life event</span>
+    </div>`;
 
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -682,7 +846,7 @@ export default function SchedulerDrawer({
   <style>
     body { font-family: system-ui, sans-serif; font-size: 11pt; color: #111; margin: 1.5cm; }
     h1 { font-size: 16pt; margin: 0 0 0.2rem; }
-    p.range { font-size: 10pt; color: #555; margin: 0 0 1.2rem; }
+    p.range { font-size: 10pt; color: #555; margin: 0 0 0.8rem; }
     table { width: 100%; border-collapse: collapse; }
     th { background: #1e293b; color: #fff; padding: 0.4rem 0.6rem; font-size: 9pt; text-align: left; }
     td { padding: 0.35rem 0.6rem; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
@@ -691,12 +855,24 @@ export default function SchedulerDrawer({
     td.title { font-weight: 600; width: 40%; }
     td.meta { color: #64748b; font-size: 9.5pt; width: 20%; }
     td.notes { color: #64748b; font-size: 9pt; width: 30%; }
+    .effort-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+    .effort-low { background: #22c55e; }
+    .effort-medium { background: #f59e0b; }
+    .effort-high { background: #ef4444; }
+    .tag { display: inline-block; font-size: 7.5pt; font-weight: 600; padding: 1px 5px; border-radius: 3px; margin-left: 5px; vertical-align: middle; }
+    .tag-task { background: #dbeafe; color: #1d4ed8; }
+    .tag-personal { background: #fce7f3; color: #be185d; }
+    .legend { display: flex; align-items: center; gap: 0.8rem; font-size: 8.5pt; color: #475569; border: 1px solid #e2e8f0; border-radius: 4px; padding: 0.4rem 0.7rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .legend-label { font-weight: 700; color: #334155; }
+    .legend-item { display: flex; align-items: center; gap: 4px; }
+    .legend-sep { color: #cbd5e1; }
     @media print { body { margin: 1cm; } }
   </style>
 </head>
 <body>
   <h1>${title}</h1>
   <p class="range">${rangeLabel}</p>
+  ${legend}
   ${rows ? `<table>
     <thead><tr><th>Time</th><th>Lesson</th><th>Subject / Year</th><th>Notes</th></tr></thead>
     <tbody>${rows}</tbody>
@@ -710,6 +886,127 @@ export default function SchedulerDrawer({
     win.document.close();
     win.focus();
     win.print();
+  }
+
+  async function loadTemplates() {
+    const res = await fetch("/api/day-templates", { cache: "no-store" });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && Array.isArray(data?.templates)) {
+      setDayTemplates(data.templates);
+    }
+  }
+
+  function openTemplatesModal() {
+    setTemplatesOpen(true);
+    void loadTemplates();
+  }
+
+  async function saveAsTemplate(name: string, dayOfWeek: string) {
+    setSavingTemplate(true);
+    const dayEvents = calendarEvents.filter(
+      (e) =>
+        e.scheduledDate === cursorDate.toISOString().slice(0, 10) &&
+        !e.allDay &&
+        e.eventType !== "custom"
+    );
+    const blocks = dayEvents.map((e) => ({
+      title: e.title,
+      subject: e.subject,
+      year_group: e.yearGroup,
+      start_time: e.startTime,
+      end_time: e.endTime,
+      event_type: e.eventType || "lesson_pack",
+      event_category: e.eventCategory || null,
+      effort: e.effort || null,
+      notes: e.notes || null,
+    }));
+    await fetch("/api/day-templates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, dayOfWeek, blocks }),
+    });
+    setSavingTemplate(false);
+    setSaveTemplateForm(null);
+    void loadTemplates();
+  }
+
+  async function applyTemplate(templateId: string, date: string) {
+    setApplyingTemplate(true);
+    const res = await fetch(`/api/day-templates/${templateId}/apply`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date }),
+    });
+    setApplyingTemplate(false);
+    if (res.ok) {
+      setApplyTemplateId(null);
+      setTemplatesOpen(false);
+      loadEvents(viewMode, cursorDate, showWeekends, currentTerm);
+      onScheduleChange?.();
+    }
+  }
+
+  async function deleteTemplate(templateId: string) {
+    await fetch(`/api/day-templates/${templateId}`, { method: "DELETE" });
+    void loadTemplates();
+  }
+
+  async function previewQuickAdd(input: string) {
+    if (!input.trim()) { setQuickAddParsed(null); setQuickAddError(""); return; }
+    const today = cursorDate.toISOString().slice(0, 10);
+    const res = await fetch("/api/quick-add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input, today, preview: true }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data?.parsed) {
+      setQuickAddParsed(data.parsed);
+      setQuickAddError("");
+    } else {
+      setQuickAddParsed(null);
+      setQuickAddError(data?.error || "Could not parse");
+    }
+  }
+
+  async function confirmQuickAdd() {
+    if (!quickAddInput.trim()) return;
+    setQuickAddSaving(true);
+    const today = cursorDate.toISOString().slice(0, 10);
+    const res = await fetch("/api/quick-add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input: quickAddInput, today }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setQuickAddSaving(false);
+    if (res.ok && data?.ok) {
+      setQuickAddOpen(false);
+      setQuickAddInput("");
+      setQuickAddParsed(null);
+      loadEvents(viewMode, cursorDate, showWeekends, currentTerm);
+      onScheduleChange?.();
+    } else {
+      setQuickAddError(data?.error || "Could not add event");
+    }
+  }
+
+  async function doBulkShift() {
+    setBulkShiftSaving(true);
+    const res = await fetch("/api/schedule/bulk-shift", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fromDate: bulkShiftFrom, toDate: bulkShiftTo }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setBulkShiftSaving(false);
+    if (res.ok && data?.ok) {
+      setBulkShiftOpen(false);
+      loadEvents(viewMode, cursorDate, showWeekends, currentTerm);
+      onScheduleChange?.();
+    } else {
+      setError(data?.error || "Could not shift events");
+    }
   }
 
   function handleDrop(date: string, slotTime: string) {
@@ -733,7 +1030,21 @@ export default function SchedulerDrawer({
     const durationMinutes = Math.max(30, (eh * 60 + em) - (sh * 60 + sm));
     const nextEndTime = addMinutes(startTime, durationMinutes);
 
-    const previous = current;
+    const clashes = detectClashes(scheduledDate, startTime, nextEndTime, eventId);
+    if (clashes.length > 0) {
+      setClashModal({
+        clashes,
+        onProceed: () => {
+          setClashModal(null);
+          void doReschedule(current, eventId, scheduledDate, startTime, nextEndTime);
+        },
+      });
+      return;
+    }
+    void doReschedule(current, eventId, scheduledDate, startTime, nextEndTime);
+  }
+
+  async function doReschedule(previous: ScheduleEvent, eventId: string, scheduledDate: string, startTime: string, nextEndTime: string) {
     setEvents((prev) =>
       prev.map((evt) =>
         evt.id === eventId
@@ -772,6 +1083,22 @@ export default function SchedulerDrawer({
   }
 
   async function handleConfirm(data: { startTime: string; endTime: string; notes: string }) {
+    if (!modal) return;
+    const clashes = detectClashes(modal.date, data.startTime, data.endTime, editEventId);
+    if (clashes.length > 0) {
+      setClashModal({
+        clashes,
+        onProceed: () => {
+          setClashModal(null);
+          void doConfirm(data);
+        },
+      });
+      return;
+    }
+    void doConfirm(data);
+  }
+
+  async function doConfirm(data: { startTime: string; endTime: string; notes: string }) {
     if (!modal) return;
     setSaving(true);
     setError("");
@@ -851,6 +1178,41 @@ export default function SchedulerDrawer({
       setError("Could not remove event.");
       loadEvents(viewMode, cursorDate, showWeekends, currentTerm);
       onScheduleChange?.();
+    }
+  }
+
+  async function handleCreatePersonalEvent(data: {
+    title: string;
+    allDay: boolean;
+    eventDate: string | null;
+    startAt: string | null;
+    endAt: string | null;
+    repeatRule: string;
+    repeatDays: string[];
+    validFrom: string | null;
+    validTo: string | null;
+    colour: string;
+    notes: string;
+  }) {
+    setSavingPersonalEvent(true);
+    setError("");
+    try {
+      const res = await fetch("/api/personal-events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json?.error || "Could not save event");
+      }
+      setPersonalEventModalDate(null);
+      loadEvents(viewMode, cursorDate, showWeekends, currentTerm);
+      onScheduleChange?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save event");
+    } finally {
+      setSavingPersonalEvent(false);
     }
   }
 
@@ -1171,6 +1533,60 @@ export default function SchedulerDrawer({
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "0.65rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
               <button
                 type="button"
+                onClick={() => { setQuickAddOpen(true); setQuickAddInput(""); setQuickAddParsed(null); setQuickAddError(""); }}
+                title="Quick add event"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: "0.3rem",
+                  border: "1px solid var(--border)", borderRadius: "999px",
+                  background: "var(--surface)", color: "var(--muted)",
+                  fontSize: "0.7rem", fontWeight: 700, padding: "0.28rem 0.7rem",
+                  cursor: "pointer", whiteSpace: "nowrap",
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                Quick add
+              </button>
+              <button
+                type="button"
+                onClick={() => { setBulkShiftOpen(true); setBulkShiftFrom(cursorDate.toISOString().slice(0, 10)); }}
+                title="Shift a whole day"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: "0.3rem",
+                  border: "1px solid var(--border)", borderRadius: "999px",
+                  background: "var(--surface)", color: "var(--muted)",
+                  fontSize: "0.7rem", fontWeight: 700, padding: "0.28rem 0.7rem",
+                  cursor: "pointer", whiteSpace: "nowrap",
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                Shift day
+              </button>
+              <button
+                type="button"
+                onClick={openTemplatesModal}
+                title="Day templates"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.3rem",
+                  border: "1px solid var(--border)",
+                  borderRadius: "999px",
+                  background: "var(--surface)",
+                  color: "var(--muted)",
+                  fontSize: "0.7rem",
+                  fontWeight: 700,
+                  padding: "0.28rem 0.7rem",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+                </svg>
+                Templates
+              </button>
+              <button
+                type="button"
                 className="scheduler-print-btn"
                 onClick={handlePrint}
                 title="Print / Save as PDF"
@@ -1277,7 +1693,7 @@ export default function SchedulerDrawer({
               <div className="scheduler-quick-actions">
                 <button
                   className="scheduler-custom-add-btn scheduler-custom-add-btn-personal scheduler-quick-button"
-                  onClick={() => setCustomModalDraft({ date: toISO(cursorDate), startTime: "09:00", endTime: "10:00", category: "Personal", lockCategory: true })}
+                  onClick={() => setPersonalEventModalDate(toISO(cursorDate))}
                 >
                   <span className="scheduler-quick-button-icon" aria-hidden="true">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -1511,6 +1927,47 @@ export default function SchedulerDrawer({
                   </p>
                 ) : null}
               </div>
+              {selectedEvent.eventType === "lesson_pack" && !isImportedCalendarEvent(selectedEvent) && (
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.65rem", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "0.74rem", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Marking load</span>
+                  {(["low", "medium", "high"] as const).map((lvl) => {
+                    const active = selectedEvent.effort === lvl;
+                    const colors = { low: "#22c55e", medium: "#f59e0b", high: "#ef4444" };
+                    return (
+                      <button
+                        key={lvl}
+                        type="button"
+                        onClick={() => {
+                          const newEffort = active ? null : lvl;
+                          fetch(`/api/schedule/${selectedEvent.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ effort: newEffort }),
+                          }).then(() => {
+                            setEvents((prev) => prev.map((e) => e.id === selectedEvent.id ? { ...e, effort: newEffort } : e));
+                            setSelectedEvent((prev) => prev ? { ...prev, effort: newEffort } : null);
+                          }).catch(() => {});
+                        }}
+                        style={{
+                          padding: "0.2rem 0.6rem",
+                          borderRadius: "999px",
+                          border: `1.5px solid ${active ? colors[lvl] : "var(--border)"}`,
+                          background: active ? `color-mix(in srgb, ${colors[lvl]} 15%, transparent)` : "transparent",
+                          color: active ? colors[lvl] : "var(--muted)",
+                          fontSize: "0.74rem",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          textTransform: "capitalize",
+                          transition: "all 150ms ease",
+                        }}
+                      >
+                        {lvl}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               {generatePackError ? (
                 <p style={{ margin: "0.5rem 0 0", fontSize: "0.8rem", color: "#ef4444" }}>{generatePackError}</p>
               ) : null}
@@ -1575,6 +2032,221 @@ export default function SchedulerDrawer({
             onConfirm={handleCreateCustomEvent}
             onCancel={() => setCustomModalDraft(null)}
           />
+        )}
+        {personalEventModalDate && (
+          <PersonalEventModal
+            date={personalEventModalDate}
+            saving={savingPersonalEvent}
+            onConfirm={handleCreatePersonalEvent}
+            onCancel={() => setPersonalEventModalDate(null)}
+          />
+        )}
+        {quickAddOpen && (
+          <div className="scheduler-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setQuickAddOpen(false); }}>
+            <div className="scheduler-modal" style={{ maxWidth: 460, width: "100%" }}>
+              <button type="button" className="scheduler-modal-x" onClick={() => setQuickAddOpen(false)}>×</button>
+              <h2 className="scheduler-modal-title">Quick Add</h2>
+              <p style={{ fontSize: "0.82rem", color: "var(--muted)", marginTop: 0, marginBottom: "0.85rem" }}>
+                Describe an event in plain English, e.g. <em>"Year 3 Maths tomorrow at 9am"</em> or <em>"Staff meeting Thursday 3-4pm"</em>
+              </p>
+              <input
+                className="scheduler-modal-input"
+                style={{ width: "100%", marginBottom: "0.75rem" }}
+                placeholder="Year 4 Science Friday 10am–11am"
+                value={quickAddInput}
+                onChange={(e) => {
+                  setQuickAddInput(e.target.value);
+                  void previewQuickAdd(e.target.value);
+                }}
+                onKeyDown={(e) => { if (e.key === "Enter") void confirmQuickAdd(); }}
+                autoFocus
+              />
+              {quickAddParsed && (
+                <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "10px", padding: "0.65rem 0.85rem", marginBottom: "0.75rem", fontSize: "0.8rem", color: "var(--fg)" }}>
+                  <p style={{ margin: "0 0 0.2rem", fontWeight: 700 }}>Parsed as:</p>
+                  <p style={{ margin: 0, color: "var(--muted)" }}>
+                    <strong>{quickAddParsed.title}</strong>{quickAddParsed.subject !== "Other" ? ` · ${quickAddParsed.subject}` : ""}{quickAddParsed.year_group ? ` · ${quickAddParsed.year_group}` : ""}<br/>
+                    {quickAddParsed.scheduled_date} · {quickAddParsed.start_time.slice(0,5)}–{quickAddParsed.end_time.slice(0,5)}
+                  </p>
+                </div>
+              )}
+              {quickAddError && <p className="scheduler-modal-error">{quickAddError}</p>}
+              <div className="scheduler-modal-actions">
+                <button type="button" className="scheduler-modal-cancel" onClick={() => setQuickAddOpen(false)}>Cancel</button>
+                <button type="button" className="scheduler-modal-confirm" disabled={quickAddSaving || !quickAddInput.trim()} onClick={() => void confirmQuickAdd()}>
+                  {quickAddSaving ? "Adding…" : "Add event"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {bulkShiftOpen && (
+          <div className="scheduler-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setBulkShiftOpen(false); }}>
+            <div className="scheduler-modal" style={{ maxWidth: 400, width: "100%" }}>
+              <button type="button" className="scheduler-modal-x" onClick={() => setBulkShiftOpen(false)}>×</button>
+              <h2 className="scheduler-modal-title">Shift a Day</h2>
+              <p style={{ fontSize: "0.82rem", color: "var(--muted)", marginTop: 0, marginBottom: "1rem" }}>
+                Move all events from one day to another. Imported calendar events are not affected.
+              </p>
+              <div className="scheduler-modal-fields">
+                <label className="scheduler-modal-field">
+                  <span className="scheduler-modal-label">From date</span>
+                  <input type="date" value={bulkShiftFrom} onChange={(e) => setBulkShiftFrom(e.target.value)} className="scheduler-modal-input" />
+                </label>
+                <label className="scheduler-modal-field">
+                  <span className="scheduler-modal-label">To date</span>
+                  <input type="date" value={bulkShiftTo} onChange={(e) => setBulkShiftTo(e.target.value)} className="scheduler-modal-input" />
+                </label>
+              </div>
+              <div className="scheduler-modal-actions">
+                <button type="button" className="scheduler-modal-cancel" onClick={() => setBulkShiftOpen(false)}>Cancel</button>
+                <button type="button" className="scheduler-modal-confirm" disabled={bulkShiftSaving || !bulkShiftFrom || !bulkShiftTo || bulkShiftFrom === bulkShiftTo} onClick={() => void doBulkShift()}>
+                  {bulkShiftSaving ? "Shifting…" : "Shift events"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {clashModal && (
+          <div className="scheduler-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setClashModal(null); }}>
+            <div className="scheduler-modal" style={{ maxWidth: 420, width: "100%" }}>
+              <button type="button" className="scheduler-modal-x" onClick={() => setClashModal(null)}>×</button>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
+                <span style={{ fontSize: "1.3rem" }}>⚠️</span>
+                <h2 className="scheduler-modal-title" style={{ margin: 0 }}>Scheduling Conflict</h2>
+              </div>
+              <p style={{ fontSize: "0.85rem", color: "var(--fg)", marginTop: 0, marginBottom: "0.75rem" }}>
+                This slot overlaps with {clashModal.clashes.length === 1 ? "an existing event" : `${clashModal.clashes.length} existing events`}:
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", marginBottom: "1.1rem" }}>
+                {clashModal.clashes.map((c, i) => (
+                  <div key={i} style={{ background: "var(--surface)", border: "1px solid #fca5a5", borderRadius: "8px", padding: "0.5rem 0.75rem", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ fontSize: "0.83rem", fontWeight: 600, color: "var(--fg)" }}>{c.title}</span>
+                    <span style={{ fontSize: "0.75rem", color: "var(--muted)", whiteSpace: "nowrap" }}>{c.time}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="scheduler-modal-actions">
+                <button type="button" className="scheduler-modal-cancel" onClick={() => setClashModal(null)}>Cancel</button>
+                <button type="button" className="scheduler-modal-confirm" onClick={clashModal.onProceed} style={{ background: "#f97316", borderColor: "#f97316" }}>
+                  Schedule anyway
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {templatesOpen && (
+          <div className="scheduler-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) { setTemplatesOpen(false); setSaveTemplateForm(null); setApplyTemplateId(null); } }}>
+            <div className="scheduler-modal" style={{ maxWidth: 480, width: "100%" }}>
+              <button type="button" className="scheduler-modal-x" onClick={() => { setTemplatesOpen(false); setSaveTemplateForm(null); setApplyTemplateId(null); }}>×</button>
+              <h2 className="scheduler-modal-title">Day Templates</h2>
+              <p style={{ fontSize: "0.82rem", color: "var(--muted)", marginTop: 0, marginBottom: "1rem" }}>
+                Save a day layout and apply it to any date in one click.
+              </p>
+
+              {/* Save current day as template */}
+              {saveTemplateForm ? (
+                <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "10px", padding: "0.85rem", marginBottom: "1rem" }}>
+                  <p style={{ margin: "0 0 0.6rem", fontSize: "0.82rem", fontWeight: 600, color: "var(--fg)" }}>Save today's layout as a template</p>
+                  <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+                    <input
+                      value={saveTemplateForm.name}
+                      onChange={(e) => setSaveTemplateForm((f) => f ? { ...f, name: e.target.value } : f)}
+                      placeholder="Template name (e.g. Monday Science)"
+                      className="scheduler-modal-input"
+                      style={{ flex: 1, minWidth: 160 }}
+                    />
+                    <select
+                      value={saveTemplateForm.dayOfWeek}
+                      onChange={(e) => setSaveTemplateForm((f) => f ? { ...f, dayOfWeek: e.target.value } : f)}
+                      className="scheduler-modal-input"
+                      style={{ minWidth: 90 }}
+                    >
+                      {["mon","tue","wed","thu","fri"].map((d) => (
+                        <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <button type="button" className="scheduler-modal-cancel" onClick={() => setSaveTemplateForm(null)} disabled={savingTemplate}>Cancel</button>
+                    <button
+                      type="button"
+                      className="scheduler-modal-confirm"
+                      disabled={savingTemplate || !saveTemplateForm.name.trim()}
+                      onClick={() => { void saveAsTemplate(saveTemplateForm.name.trim(), saveTemplateForm.dayOfWeek); }}
+                    >
+                      {savingTemplate ? "Saving…" : "Save template"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="scheduler-modal-confirm"
+                  style={{ marginBottom: "1rem", width: "100%" }}
+                  onClick={() => {
+                    const dow = ["sun","mon","tue","wed","thu","fri","sat"][cursorDate.getDay()] ?? "mon";
+                    setSaveTemplateForm({ name: "", dayOfWeek: dow });
+                  }}
+                >
+                  + Save today as template
+                </button>
+              )}
+
+              {/* Template list */}
+              {dayTemplates.length === 0 ? (
+                <p style={{ fontSize: "0.82rem", color: "var(--muted)", textAlign: "center", padding: "1rem 0" }}>No templates saved yet.</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  {dayTemplates.map((tpl) => (
+                    <div key={tpl.id} style={{ border: "1px solid var(--border)", borderRadius: "10px", padding: "0.7rem 0.85rem", background: "var(--surface)" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: applyTemplateId === tpl.id ? "0.6rem" : 0 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ margin: 0, fontSize: "0.87rem", fontWeight: 700, color: "var(--fg)" }}>{tpl.name}</p>
+                          <p style={{ margin: 0, fontSize: "0.73rem", color: "var(--muted)" }}>
+                            {tpl.day_of_week.charAt(0).toUpperCase() + tpl.day_of_week.slice(1)} · {tpl.blocks.length} block{tpl.blocks.length !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setApplyTemplateId(applyTemplateId === tpl.id ? null : tpl.id)}
+                          style={{ padding: "0.22rem 0.65rem", borderRadius: "7px", border: "1px solid var(--accent)", background: "transparent", color: "var(--accent)", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                        >
+                          Apply
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { void deleteTemplate(tpl.id); }}
+                          style={{ padding: "0.22rem 0.55rem", borderRadius: "7px", border: "1px solid #fca5a5", background: "transparent", color: "#ef4444", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                      {applyTemplateId === tpl.id && (
+                        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                          <input
+                            type="date"
+                            value={applyTemplateDate}
+                            onChange={(e) => setApplyTemplateDate(e.target.value)}
+                            className="scheduler-modal-input"
+                            style={{ flex: 1, minWidth: 130 }}
+                          />
+                          <button
+                            type="button"
+                            className="scheduler-modal-confirm"
+                            disabled={applyingTemplate || !applyTemplateDate}
+                            onClick={() => { void applyTemplate(tpl.id, applyTemplateDate); }}
+                          >
+                            {applyingTemplate ? "Applying…" : "Apply to date"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </aside>
     </>

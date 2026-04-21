@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 
 import PartA from "./PartA";
+import RoleSelector from "./RoleSelector";
 const PartB = dynamic(() => import("./PartB"));
 const PartC = dynamic(() => import("./PartC"));
 const ThankYou = dynamic(() => import("./ThankYou"));
@@ -35,8 +36,7 @@ function getFirstIncompleteStep(role, answers, completed) {
   if (completed) return "done";
 
   const firstMissing = sequence.find((part) => {
-    const mappedKey = part;
-    return Object.keys(answers[mappedKey] || {}).length === 0;
+    return Object.keys(answers[part] || {}).length === 0;
   });
 
   return firstMissing || "done";
@@ -44,8 +44,8 @@ function getFirstIncompleteStep(role, answers, completed) {
 
 export default function SurveyShell() {
   const [surveyId, setSurveyId] = useState(null);
-  const [step, setStep] = useState("partA");
-  const [role, setRole] = useState("impartial");
+  const [step, setStep] = useState("role");
+  const [role, setRole] = useState(null);
   const [answers, setAnswers] = useState(INITIAL_ANSWERS);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -64,9 +64,7 @@ export default function SurveyShell() {
 
     async function restoreProgress() {
       const savedSurveyId = sessionStorage.getItem(STORAGE_KEY);
-      if (!savedSurveyId) {
-        return;
-      }
+      if (!savedSurveyId) return;
 
       const timeout = window.setTimeout(() => controller.abort(), 1800);
       const response = await fetch(`/api/survey/${savedSurveyId}`, { signal: controller.signal });
@@ -106,10 +104,7 @@ export default function SurveyShell() {
   function handleChange(partKey, key, value) {
     setAnswers((prev) => ({
       ...prev,
-      [partKey]: {
-        ...prev[partKey],
-        [key]: value,
-      },
+      [partKey]: { ...prev[partKey], [key]: value },
     }));
   }
 
@@ -123,13 +118,16 @@ export default function SurveyShell() {
   }
 
   function goBack() {
+    if (step === "partA") {
+      setStep("role");
+      return;
+    }
     const index = partsForRole.findIndex((item) => item === step);
     if (index <= 0) return;
     setStep(partsForRole[index - 1]);
   }
 
   async function saveAndNext(partKey) {
-
     const index = partsForRole.indexOf(partKey);
     const isFinalPart = index === partsForRole.length - 1;
 
@@ -143,9 +141,7 @@ export default function SurveyShell() {
       completed: isFinalPart,
     };
 
-    if (surveyId) {
-      payload.id = surveyId;
-    }
+    if (surveyId) payload.id = surveyId;
 
     try {
       const response = await fetch("/api/survey", {
@@ -168,12 +164,7 @@ export default function SurveyShell() {
         sessionStorage.setItem(STORAGE_KEY, resolvedId);
       }
 
-      if (isFinalPart) {
-        setStep("done");
-      } else {
-        setStep(partsForRole[index + 1]);
-      }
-
+      setStep(isFinalPart ? "done" : partsForRole[index + 1]);
       setSaving(false);
     } catch {
       setSaving(false);
@@ -182,7 +173,11 @@ export default function SurveyShell() {
   }
 
   if (step === "done") {
-    return <ThankYou surveyId={surveyId} />;
+    return (
+      <div className="surveyx-wrap">
+        <ThankYou surveyId={surveyId} />
+      </div>
+    );
   }
 
   const showProgress = currentPartIndex >= 0;
@@ -190,57 +185,73 @@ export default function SurveyShell() {
 
   return (
     <div className="surveyx-wrap">
-      {showProgress ? (
-        <section className="surveyx-progress card" aria-live="polite">
-          <p>Part {currentPartIndex + 1} of {partsForRole.length}</p>
-          <div className="surveyx-progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressPct)}>
-            <span style={{ width: `${progressPct}%` }} />
-          </div>
-        </section>
-      ) : null}
-
-      {error ? <div className="surveyx-error-banner">{error}</div> : null}
-      {toast ? (
-        <div className="surveyx-toast" role="status" aria-live="assertive">
-          {toast.message}
-        </div>
-      ) : null}
-
-      {step === "partA" ? (
-        <PartA
-          answers={answers.partA}
-          onChange={(key, value) => handleChange("partA", key, value)}
-          onBack={goBack}
-          onNext={() => saveAndNext("partA")}
-          onValidationError={showValidationToast}
-          saving={saving}
+      {step === "role" ? (
+        <RoleSelector
+          role={role}
+          onSelect={setRole}
+          onContinue={() => {
+            if (role) setStep("partA");
+          }}
         />
       ) : null}
 
-      {step === "partB" ? (
-        <PartB
-          answers={answers.partB}
-          onChange={(key, value) => handleChange("partB", key, value)}
-          onBack={goBack}
-          onNext={() => saveAndNext("partB")}
-          onValidationError={showValidationToast}
-          saving={saving}
-          isFinal={currentPartIndex === partsForRole.length - 1}
-        />
-      ) : null}
+      {step !== "role" ? (
+        <>
+          {showProgress ? (
+            <section className="surveyx-progress card" aria-live="polite">
+              <div className="surveyx-progress-header">
+                <p>{PART_NAMES[step] || step}</p>
+                <span>Part {currentPartIndex + 1} of {partsForRole.length}</span>
+              </div>
+              <div className="surveyx-progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressPct)}>
+                <span style={{ width: `${progressPct}%` }} />
+              </div>
+            </section>
+          ) : null}
 
-      {step === "partC" ? (
-        <PartC
-          answers={answers.partC}
-          onChange={(key, value) => handleChange("partC", key, value)}
-          onBack={goBack}
-          onNext={() => saveAndNext("partC")}
-          onValidationError={showValidationToast}
-          saving={saving}
-          isFinal={currentPartIndex === partsForRole.length - 1}
-        />
-      ) : null}
+          {error ? <div className="surveyx-error-banner">{error}</div> : null}
+          {toast ? (
+            <div className="surveyx-toast" role="status" aria-live="assertive">
+              {toast.message}
+            </div>
+          ) : null}
 
+          {step === "partA" ? (
+            <PartA
+              answers={answers.partA}
+              onChange={(key, value) => handleChange("partA", key, value)}
+              onBack={goBack}
+              onNext={() => saveAndNext("partA")}
+              onValidationError={showValidationToast}
+              saving={saving}
+            />
+          ) : null}
+
+          {step === "partB" ? (
+            <PartB
+              answers={answers.partB}
+              onChange={(key, value) => handleChange("partB", key, value)}
+              onBack={goBack}
+              onNext={() => saveAndNext("partB")}
+              onValidationError={showValidationToast}
+              saving={saving}
+              isFinal={currentPartIndex === partsForRole.length - 1}
+            />
+          ) : null}
+
+          {step === "partC" ? (
+            <PartC
+              answers={answers.partC}
+              onChange={(key, value) => handleChange("partC", key, value)}
+              onBack={goBack}
+              onNext={() => saveAndNext("partC")}
+              onValidationError={showValidationToast}
+              saving={saving}
+              isFinal={currentPartIndex === partsForRole.length - 1}
+            />
+          ) : null}
+        </>
+      ) : null}
     </div>
   );
 }

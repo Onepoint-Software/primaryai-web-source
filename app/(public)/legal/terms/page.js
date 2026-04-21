@@ -1,11 +1,202 @@
 import Nav from "@/components/marketing/Nav";
 
+export const metadata = {
+  title: "Terms of Service — PrimaryAI",
+};
+
 export default function TermsPage() {
   return (
     <main className="page-wrap">
       <Nav />
-      <h1>Terms of Service</h1>
-      <p className="muted">Placeholder terms. Replace with your final legal copy before launch.</p>
+      <div className="card" style={{ maxWidth: 860, margin: "1.25rem auto 0" }}>
+        <h1 style={{ margin: "0 0 0.5rem", fontSize: "2rem", letterSpacing: "-0.04em" }}>Terms of Service</h1>
+        <p className="muted" style={{ marginTop: 0 }}>Last updated: 21 April 2026</p>
+
+        <div style={{ display: "grid", gap: "1rem", lineHeight: 1.65 }}>
+
+          <section>
+            <h2 style={{ marginBottom: "0.35rem" }}>1. About these terms</h2>
+            <p style={{ margin: 0 }}>
+              These terms of service ("Terms") govern your access to and use of PrimaryAI, a web-based lesson planning and
+              education workflow platform ("Service") operated by Onepoint Software ("we", "us", "our"). By creating an account
+              or using the Service you agree to these Terms. If you do not agree, do not use the Service.
+            </p>
+          </section>
+
+          <section>
+            <h2 style={{ marginBottom: "0.35rem" }}>2. Who may use the Service</h2>
+            <p style={{ margin: "0 0 0.5rem" }}>
+              The Service is intended solely for adults (aged 18 or over) who are qualified teachers, school staff, or
+              education professionals working in or around primary education in the United Kingdom. You must not use the
+              Service:
+            </p>
+            <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
+              <li>if you are under 18 years of age</li>
+              <li>on behalf of pupils or children</li>
+              <li>for any unlawful purpose or in violation of any applicable law or regulation</li>
+              <li>in a way that could harm children or compromise safeguarding obligations</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 style={{ marginBottom: "0.35rem" }}>3. Accounts</h2>
+            <p style={{ margin: "0 0 0.5rem" }}>
+              You are responsible for maintaining the confidentiality of your account credentials and for all activity that
+              occurs under your account. You must notify us immediately if you suspect unauthorised access to your account.
+              We reserve the right to suspend or terminate accounts that breach these Terms.
+            </p>
+            <p style={{ margin: 0 }}>
+              You must provide accurate information when registering. One account per individual user unless otherwise
+              agreed in writing.
+            </p>
+          </section>
+
+          <section>
+            <h2 style={{ marginBottom: "0.35rem" }}>4. Acceptable use</h2>
+            <p style={{ margin: "0 0 0.5rem" }}>You agree not to:</p>
+            <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
+              <li>enter any personal data relating to identifiable pupils into the Service, including names, dates of birth, assessment records, or any other information capable of identifying a child</li>
+              <li>use the Service to generate, store, or distribute content that is unlawful, harmful, defamatory, discriminatory, or offensive</li>
+              <li>attempt to reverse engineer, scrape, or otherwise extract data or source code from the Service</li>
+              <li>share your account credentials with others or allow third parties to access the Service through your account</li>
+              <li>use the Service in any way that could damage, disable, overburden, or impair it</li>
+              <li>use automated means (bots, scrapers, crawlers) to access the Service without our prior written consent</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 style={{ marginBottom: "0.35rem" }}>5. Pupil data and safeguarding</h2>
+            <p style={{ margin: "0 0 0.5rem" }}>
+              PrimaryAI is designed to help teachers plan lessons using anonymised class-level information — such as year
+              group, subject, ability percentages, and EAL proportions — without processing personal data about individual
+              pupils. You must not enter any information into the Service that could identify a specific child.
+            </p>
+            <p style={{ margin: 0 }}>
+              You are responsible for complying with your school's data protection policy, your obligations under the UK
+              GDPR and the Data Protection Act 2018, and the DfE's "Keeping Children Safe in Education" guidance when
+              using the Service. We are not responsible for any breach of those obligations arising from your use of the
+              Service.
+            </p>
+          </section>
+
+          <section>
+            <h2 style={{ marginBottom: "0.35rem" }}>6. AI-generated content</h2>
+            <p style={{ margin: "0 0 0.5rem" }}>
+              Lesson packs and other content generated by the Service are produced by third-party AI models. All
+              AI-generated content is provided as a starting point for professional teacher judgement. You must review and
+              verify all generated content before using it with pupils. We make no warranty that AI-generated content is
+              accurate, curriculum-compliant, or suitable for any particular class or individual.
+            </p>
+            <p style={{ margin: 0 }}>
+              Generated content is not a substitute for your professional expertise and statutory safeguarding
+              responsibilities. You are solely responsible for any decisions you make on the basis of AI-generated content.
+            </p>
+          </section>
+
+          <section>
+            <h2 style={{ marginBottom: "0.35rem" }}>7. Intellectual property</h2>
+            <p style={{ margin: "0 0 0.5rem" }}>
+              The Service, including its design, software, and underlying technology, is owned by us and protected by
+              applicable intellectual property laws. We grant you a limited, non-exclusive, non-transferable licence to
+              use the Service for its intended educational purpose during the term of your subscription.
+            </p>
+            <p style={{ margin: 0 }}>
+              Content you create or save within the Service (such as lesson packs, notes, and custom edits) remains yours.
+              You grant us a limited licence to store and process that content solely to provide the Service to you.
+            </p>
+          </section>
+
+          <section>
+            <h2 style={{ marginBottom: "0.35rem" }}>8. Subscriptions and payment</h2>
+            <p style={{ margin: "0 0 0.5rem" }}>
+              Some features of the Service require a paid subscription. Subscription fees are charged in advance on a
+              recurring basis. All fees are non-refundable except where required by law or expressly stated otherwise.
+              We may change subscription pricing on reasonable notice; continued use after a price change constitutes
+              acceptance of the new price.
+            </p>
+            <p style={{ margin: 0 }}>
+              Payments are processed by Stripe. We do not store your payment card details. Stripe's own terms and privacy
+              policy apply to payment processing.
+            </p>
+          </section>
+
+          <section>
+            <h2 style={{ marginBottom: "0.35rem" }}>9. Availability and changes</h2>
+            <p style={{ margin: 0 }}>
+              We aim to provide a reliable Service but do not guarantee uninterrupted availability. We may modify, suspend,
+              or discontinue any part of the Service at any time, with reasonable notice where practicable. We will not be
+              liable for any loss caused by unavailability or changes to the Service.
+            </p>
+          </section>
+
+          <section>
+            <h2 style={{ marginBottom: "0.35rem" }}>10. Disclaimer of warranties</h2>
+            <p style={{ margin: 0 }}>
+              The Service is provided "as is" and "as available". To the fullest extent permitted by applicable law, we
+              disclaim all warranties, express or implied, including warranties of merchantability, fitness for a particular
+              purpose, and non-infringement. We do not warrant that the Service is error-free, secure, or that AI-generated
+              content is accurate or suitable for your needs.
+            </p>
+          </section>
+
+          <section>
+            <h2 style={{ marginBottom: "0.35rem" }}>11. Limitation of liability</h2>
+            <p style={{ margin: 0 }}>
+              To the fullest extent permitted by law, our total liability to you for any claim arising out of or related
+              to the Service shall not exceed the fees paid by you in the twelve months preceding the claim. We shall not
+              be liable for any indirect, incidental, special, consequential, or punitive damages, including loss of data,
+              loss of profits, or reputational damage, even if we have been advised of the possibility of such damages.
+              Nothing in these Terms excludes or limits liability for death or personal injury caused by our negligence,
+              fraud, or any other liability that cannot be excluded under applicable law.
+            </p>
+          </section>
+
+          <section>
+            <h2 style={{ marginBottom: "0.35rem" }}>12. Data protection</h2>
+            <p style={{ margin: 0 }}>
+              Our collection and use of personal data is governed by our{" "}
+              <a href="/legal/privacy" style={{ color: "var(--accent)" }}>Privacy Policy</a>, which forms part of these
+              Terms. By using the Service you acknowledge that you have read and understood the Privacy Policy.
+            </p>
+          </section>
+
+          <section>
+            <h2 style={{ marginBottom: "0.35rem" }}>13. Termination</h2>
+            <p style={{ margin: 0 }}>
+              You may cancel your account at any time via the account settings. We may suspend or terminate your access
+              immediately if you breach these Terms or if we are required to do so by law. On termination, your right to
+              use the Service ceases and we will handle your data in accordance with the Privacy Policy.
+            </p>
+          </section>
+
+          <section>
+            <h2 style={{ marginBottom: "0.35rem" }}>14. Governing law</h2>
+            <p style={{ margin: 0 }}>
+              These Terms are governed by the laws of England and Wales. Any disputes shall be subject to the exclusive
+              jurisdiction of the courts of England and Wales, unless applicable consumer protection law provides
+              otherwise.
+            </p>
+          </section>
+
+          <section>
+            <h2 style={{ marginBottom: "0.35rem" }}>15. Changes to these Terms</h2>
+            <p style={{ margin: 0 }}>
+              We may update these Terms from time to time. Material changes will be communicated via email or a prominent
+              notice within the Service. Continued use of the Service after the effective date of revised Terms constitutes
+              your acceptance of those changes.
+            </p>
+          </section>
+
+          <section>
+            <h2 style={{ marginBottom: "0.35rem" }}>16. Contact</h2>
+            <p style={{ margin: 0 }}>
+              For questions about these Terms, please contact us via the{" "}
+              <a href="/contact" style={{ color: "var(--accent)" }}>Contact page</a>.
+            </p>
+          </section>
+
+        </div>
+      </div>
     </main>
   );
 }

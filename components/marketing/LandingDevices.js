@@ -1,34 +1,70 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import MockPhone from "./mockui/MockPhone";
 
-const LAPTOP_FRAMES = [
-  { src: "/images/landing/home-laptop-1.png", width: 2838, height: 1484 },
-  { src: "/images/landing/home-laptop-2.png", width: 2862, height: 1476 },
-  { src: "/images/landing/home-laptop-3.png", width: 2838, height: 1450 },
-  { src: "/images/landing/home-laptop-4.png", width: 2794, height: 1448 },
-  { src: "/images/landing/home-laptop-5.png", width: 2806, height: 1470 },
-];
+// The three preview screens are full 1440×900 renders of the actual app.
+// We scale them to fit the laptop chassis via ResizeObserver.
+const DashboardPreview    = dynamic(() => import("@/app/(preview)/preview/dashboard/page.js"),     { ssr: false });
+const LessonResultPreview = dynamic(() => import("@/app/(preview)/preview/lesson-result/page.js"), { ssr: false });
+const LibraryPreview      = dynamic(() => import("@/app/(preview)/preview/library/page.js"),       { ssr: false });
 
-const MOBILE_FRAMES = [
-  { src: "/images/landing/home-mobile-fit-5.png", width: 429, height: 916 },
-  { src: "/images/landing/home-mobile-fit-6.png", width: 436, height: 930 },
-  { src: "/images/landing/home-mobile-fit-7.png", width: 428, height: 914 },
+const SCREENS = [
+  { Component: DashboardPreview,    label: "Weekly Planner",  kicker: "Dashboard" },
+  { Component: LessonResultPreview, label: "Lesson Pack",     kicker: "AI Generator" },
+  { Component: LibraryPreview,      label: "Lesson Library",  kicker: "Library" },
 ];
 
 export default function LandingDevices() {
-  const [laptopFrameIndex, setLaptopFrameIndex] = useState(0);
-  const [mobileFrameIndex, setMobileFrameIndex] = useState(0);
-  const activeMobileFrame = MOBILE_FRAMES[mobileFrameIndex] ?? MOBILE_FRAMES[0];
+  const [index, setIndex]       = useState(0);
+  const [fading, setFading]     = useState(false);
+  const [laptopScale, setLaptopScale] = useState(0.31);
+  const [phoneScale, setPhoneScale]   = useState(0.32);
+  const screenWrapRef = useRef(null);
+  const phoneWrapRef  = useRef(null);
 
+  // Scale laptop screen to fit chassis
   useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      setLaptopFrameIndex((current) => (current + 1) % LAPTOP_FRAMES.length);
-      setMobileFrameIndex((current) => (current + 1) % MOBILE_FRAMES.length);
-    }, 6200);
-    return () => window.clearInterval(intervalId);
+    const el = screenWrapRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(([entry]) => {
+      setLaptopScale(entry.contentRect.width / 1440);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
   }, []);
+
+  // Scale phone content to fit phone screen
+  useEffect(() => {
+    const el = phoneWrapRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(([entry]) => {
+      setPhoneScale(entry.contentRect.width / 280);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  // Auto-cycle screens
+  useEffect(() => {
+    const id = setInterval(() => {
+      setFading(true);
+      setTimeout(() => {
+        setIndex((i) => (i + 1) % SCREENS.length);
+        setFading(false);
+      }, 350);
+    }, 7000);
+    return () => clearInterval(id);
+  }, []);
+
+  function goTo(i) {
+    if (i === index) return;
+    setFading(true);
+    setTimeout(() => { setIndex(i); setFading(false); }, 350);
+  }
+
+  const { Component, label, kicker } = SCREENS[index];
 
   return (
     <div className="landing-showcase-inner">
@@ -42,24 +78,25 @@ export default function LandingDevices() {
       </div>
 
       <div className="landing-device-showcase" aria-label="PrimaryAI dashboard preview">
+
         <div className="landing-laptop-wrap">
           <div className="landing-laptop-screen-shell">
             <div className="landing-laptop-screen">
-              <div className="landing-frame-stage">
-                {LAPTOP_FRAMES.map((frame, index) => (
-                  <Image
-                    key={frame.src}
-                    className={`landing-frame-image landing-frame-layer${index === laptopFrameIndex ? " is-active" : ""}`}
-                    src={frame.src}
-                    alt="PrimaryAI dashboard screen"
-                    width={frame.width}
-                    height={frame.height}
-                    priority={index === 0}
-                    loading="eager"
-                    quality={85}
-                    sizes="(max-width: 760px) 100vw, (max-width: 1200px) 40vw, 500px"
-                  />
-                ))}
+              {/* Measure the real pixel size of the screen area */}
+              <div ref={screenWrapRef} style={{ width: "100%", height: "100%", overflow: "hidden", position: "relative" }}>
+                {/* Scale 1440×900 preview content to fill the chassis */}
+                <div style={{
+                  position: "absolute",
+                  top: 0, left: 0,
+                  width: 1440, height: 900,
+                  transformOrigin: "top left",
+                  transform: `scale(${laptopScale})`,
+                  opacity: fading ? 0 : 1,
+                  transition: "opacity 0.35s ease",
+                  pointerEvents: "none",
+                }}>
+                  <Component />
+                </div>
               </div>
             </div>
           </div>
@@ -71,25 +108,31 @@ export default function LandingDevices() {
         <div className="landing-phone-back-glow" aria-hidden="true" />
         <div className="landing-phone-wrap">
           <div className="landing-phone-notch" />
-          <div className="landing-phone-screen">
-            <div className="landing-frame-stage landing-frame-stage-phone">
-              <Image
-                key={activeMobileFrame.src}
-                className="landing-frame-image landing-frame-image-phone landing-frame-layer is-active"
-                src={activeMobileFrame.src}
-                alt="PrimaryAI dashboard screen on mobile"
-                width={activeMobileFrame.width}
-                height={activeMobileFrame.height}
-                priority
-                loading="eager"
-                quality={85}
-                sizes="(max-width: 760px) 26vw, 120px"
-              />
-            </div>
+          <div className="landing-phone-screen" ref={phoneWrapRef}>
+            <MockPhone scale={phoneScale} />
           </div>
         </div>
+
       </div>
 
+      {/* Screen indicator */}
+      <div className="landing-screen-nav">
+        <div className="landing-screen-dots">
+          {SCREENS.map((s, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => goTo(i)}
+              className={`landing-screen-dot${i === index ? " is-active" : ""}`}
+              aria-label={`Show ${s.label}`}
+            />
+          ))}
+        </div>
+        <span className="landing-screen-label">
+          <span className="landing-screen-kicker">{kicker}</span>
+          {label}
+        </span>
+      </div>
     </div>
   );
 }

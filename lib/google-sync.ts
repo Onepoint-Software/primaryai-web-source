@@ -1,5 +1,6 @@
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { formatSupabaseError, isMissingColumnError, isMissingRelationError } from "@/lib/supabase-errors";
+import { decryptToken, encryptToken } from "@/lib/token-crypto";
 import {
   buildGoogleEventPayload,
   buildGoogleNotes,
@@ -68,24 +69,33 @@ async function ensureValidAccessToken(userId: string) {
     Number.isNaN(expiresAt.getTime()) ||
     expiresAt.getTime() - Date.now() < 5 * 60 * 1000;
 
+  const storedAccessToken = String(data.access_token || "");
+  const decryptedAccessToken = await decryptToken(storedAccessToken);
+
   if (!needsRefresh) {
-    return { supabase, connection: data, accessToken: String(data.access_token) };
+    return { supabase, connection: data, accessToken: decryptedAccessToken };
   }
   if (!data.refresh_token) {
     throw new Error("Google Calendar connection expired. Please reconnect Google Calendar.");
   }
 
-  const refreshed = await refreshGoogleAccessToken(String(data.refresh_token));
+  const decryptedRefreshToken = await decryptToken(String(data.refresh_token));
+  const refreshed = await refreshGoogleAccessToken(decryptedRefreshToken);
   const nextAccessToken = String(refreshed.access_token || "");
-  const nextRefreshToken = String(refreshed.refresh_token || data.refresh_token || "");
+  const nextRefreshToken = String(refreshed.refresh_token || decryptedRefreshToken || "");
   const expiresIn = Number(refreshed.expires_in || 3600);
   const nextExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+
+  const [encNextAccess, encNextRefresh] = await Promise.all([
+    encryptToken(nextAccessToken),
+    encryptToken(nextRefreshToken),
+  ]);
 
   const { data: updated, error: updateError } = await supabase
     .from("google_calendar_connections")
     .update({
-      access_token: nextAccessToken,
-      refresh_token: nextRefreshToken,
+      access_token: encNextAccess,
+      refresh_token: encNextRefresh,
       expires_at: nextExpiresAt,
       scope: typeof refreshed.scope === "string" ? refreshed.scope : data.scope,
       updated_at: new Date().toISOString(),
@@ -200,13 +210,18 @@ export async function storeGoogleConnection(args: {
   const expiresAt = new Date(Date.now() + Number(tokenData.expires_in || 3600) * 1000).toISOString();
   const profile = await fetchGoogleProfile(accessToken);
 
+  const [encAccess, encRefresh] = await Promise.all([
+    encryptToken(accessToken),
+    refreshToken ? encryptToken(refreshToken) : Promise.resolve(null),
+  ]);
+
   const { error } = await supabase.from("google_calendar_connections").upsert(
     {
       user_id: args.userId,
       google_user_id: String(profile?.id || ""),
       email: String(profile?.email || ""),
-      access_token: accessToken,
-      refresh_token: refreshToken,
+      access_token: encAccess,
+      refresh_token: encRefresh,
       expires_at: expiresAt,
       scope: typeof tokenData.scope === "string" ? tokenData.scope : null,
       updated_at: new Date().toISOString(),

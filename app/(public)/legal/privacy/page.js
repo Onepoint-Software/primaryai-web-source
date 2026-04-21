@@ -7,7 +7,7 @@ export default function PrivacyPage() {
       <div className="card" style={{ maxWidth: 860, margin: "1.25rem auto 0" }}>
         <h1 style={{ margin: "0 0 0.5rem", fontSize: "2rem", letterSpacing: "-0.04em" }}>Privacy Policy</h1>
         <p className="muted" style={{ marginTop: 0 }}>
-          Last updated: 8 March 2026
+          Last updated: 21 April 2026
         </p>
 
         <div style={{ display: "grid", gap: "1rem", lineHeight: 1.65 }}>
@@ -99,15 +99,41 @@ export default function PrivacyPage() {
 
           <section>
             <h2 style={{ marginBottom: "0.35rem" }}>8. Retention</h2>
+            <p style={{ margin: "0 0 0.5rem" }}>
+              We retain personal data for as long as your account is active. If your account has been inactive (no login) for
+              more than <strong>24 months</strong>, we will notify you by email and, unless you reactivate your account
+              within 30 days, delete your account data in accordance with this policy.
+            </p>
             <p style={{ margin: 0 }}>
-              We keep personal data for as long as reasonably necessary to provide the service, maintain records, resolve disputes, comply with legal obligations, and improve the platform. If you ask us to delete your data, we will process that request subject to legal and operational requirements.
+              You may delete your account at any time via Settings → Account. On deletion, all personal data associated
+              with your account is permanently removed from our systems within 30 days, except where we are required by law
+              to retain certain records. Anonymised, aggregated usage statistics that cannot identify you may be retained
+              indefinitely.
             </p>
           </section>
 
           <section>
             <h2 style={{ marginBottom: "0.35rem" }}>9. Your rights</h2>
+            <p style={{ margin: "0 0 0.5rem" }}>
+              Under UK GDPR you have the right to:
+            </p>
+            <ul style={{ margin: "0 0 0.5rem", paddingLeft: "1.2rem" }}>
+              <li><strong>Access</strong> — request a copy of the personal data we hold about you</li>
+              <li><strong>Rectification</strong> — ask us to correct inaccurate or incomplete data</li>
+              <li><strong>Erasure</strong> — request deletion of your personal data ("right to be forgotten")</li>
+              <li><strong>Restriction</strong> — ask us to limit how we process your data</li>
+              <li><strong>Portability</strong> — receive your data in a structured, machine-readable format</li>
+              <li><strong>Objection</strong> — object to processing based on legitimate interests</li>
+            </ul>
+            <p style={{ margin: "0 0 0.5rem" }}>
+              You can export a copy of all your personal data directly from the Service at any time via{" "}
+              <strong>Settings → Account → Download my data</strong>. To exercise any other right, contact us using the
+              details on the Contact page. We will respond within one calendar month.
+            </p>
             <p style={{ margin: 0 }}>
-              You may have rights to access, correct, delete, restrict or object to certain processing of your personal data, and to request a copy of the data you have provided. To exercise those rights, contact us using the details on the Contact page.
+              You also have the right to lodge a complaint with the Information Commissioner's Office (ICO) at{" "}
+              <a href="https://ico.org.uk" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)" }}>ico.org.uk</a>{" "}
+              if you believe we have not handled your data appropriately.
             </p>
           </section>
 

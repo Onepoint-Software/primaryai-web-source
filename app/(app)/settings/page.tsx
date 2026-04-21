@@ -30,6 +30,32 @@ type TermEntry = {
   termEndDate: string;
 };
 
+type BoundarySettings = {
+  work_day_start: string;
+  work_day_end: string;
+  protect_lunch: boolean;
+  lunch_start: string;
+  lunch_end: string;
+  nights_off: string[];
+  suggestion_tone: string;
+  dyslexia_font: boolean;
+  reduce_motion: boolean;
+  countdown_mode: string;
+};
+
+const INITIAL_BOUNDARIES: BoundarySettings = {
+  work_day_start: "08:00",
+  work_day_end: "17:00",
+  protect_lunch: false,
+  lunch_start: "12:00",
+  lunch_end: "13:00",
+  nights_off: [],
+  suggestion_tone: "neutral",
+  dyslexia_font: false,
+  reduce_motion: false,
+  countdown_mode: "days",
+};
+
 const INITIAL_PROFILE: Profile = {
   displayName: "",
   avatarUrl: "",
@@ -232,8 +258,13 @@ export default function SettingsPage() {
   const [avatarFileName, setAvatarFileName] = useState("");
   const [avatarPrompt, setAvatarPrompt] = useState("");
   const [aiGenerating, setAiGenerating] = useState(false);
-  type SectionKey = "profile" | "defaults" | "terms" | "tone" | "schoolType" | "approach" | "ability" | "classProfile" | "classNotes" | "prefs";
-  const SECTION_KEYS: SectionKey[] = ["profile","defaults","terms","tone","schoolType","approach","ability","classProfile","classNotes","prefs"];
+  const [boundaries, setBoundaries] = useState<BoundarySettings>(INITIAL_BOUNDARIES);
+  type InsetEntry = { id: string; event_date: string; label: string; day_type: "inset" | "bank_holiday" | "closure" };
+  const [insetDays, setInsetDays] = useState<InsetEntry[]>([]);
+  const [insetSaving, setInsetSaving] = useState(false);
+  const [insetError, setInsetError] = useState("");
+  type SectionKey = "profile" | "defaults" | "terms" | "tone" | "schoolType" | "approach" | "ability" | "classProfile" | "classNotes" | "prefs" | "boundaries";
+  const SECTION_KEYS: SectionKey[] = ["profile","defaults","terms","tone","schoolType","approach","ability","classProfile","classNotes","prefs","boundaries"];
   const blankRecord = <T,>(v: T) => Object.fromEntries(SECTION_KEYS.map(k => [k, v])) as Record<SectionKey, T>;
   const [sectionStatus, setSectionStatus] = useState(() => blankRecord<"idle"|"saving"|"saved"|"error">("idle"));
   const [sectionErrors, setSectionErrors] = useState(() => blankRecord(""));
@@ -286,6 +317,35 @@ export default function SettingsPage() {
           displayName: setupData.profileSetup.displayName ?? "",
           avatarUrl: setupData.profileSetup.avatarUrl ?? "",
         }));
+      }
+
+      const insetRes = await fetch("/api/inset-days");
+      const insetData = await insetRes.json().catch(() => ({}));
+      if (insetRes.ok && Array.isArray(insetData?.insetDays)) {
+        setInsetDays(insetData.insetDays.map((d: any) => ({
+          id: String(d.id || `inset-${Math.random()}`),
+          event_date: String(d.event_date || ""),
+          label: String(d.label || "INSET Day"),
+          day_type: (["inset", "bank_holiday", "closure"].includes(d.day_type) ? d.day_type : "inset") as "inset" | "bank_holiday" | "closure",
+        })));
+      }
+
+      const boundaryRes = await fetch("/api/boundary-settings");
+      const boundaryData = await boundaryRes.json().catch(() => ({}));
+      if (boundaryRes.ok && boundaryData?.settings) {
+        const s = boundaryData.settings;
+        setBoundaries({
+          work_day_start: s.work_day_start ?? INITIAL_BOUNDARIES.work_day_start,
+          work_day_end: s.work_day_end ?? INITIAL_BOUNDARIES.work_day_end,
+          protect_lunch: Boolean(s.protect_lunch),
+          lunch_start: s.lunch_start ?? INITIAL_BOUNDARIES.lunch_start,
+          lunch_end: s.lunch_end ?? INITIAL_BOUNDARIES.lunch_end,
+          nights_off: Array.isArray(s.nights_off) ? s.nights_off : [],
+          suggestion_tone: s.suggestion_tone ?? INITIAL_BOUNDARIES.suggestion_tone,
+          dyslexia_font: Boolean(s.dyslexia_font),
+          reduce_motion: Boolean(s.reduce_motion),
+          countdown_mode: s.countdown_mode ?? INITIAL_BOUNDARIES.countdown_mode,
+        });
       }
     })();
   }, []);
@@ -383,6 +443,51 @@ export default function SettingsPage() {
     return response;
   };
   const postTerms = () => fetch("/api/profile/terms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ terms }) });
+  const postBoundaries = () => fetch("/api/boundary-settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(boundaries) });
+
+  async function saveInsetDays() {
+    setInsetSaving(true);
+    setInsetError("");
+    try {
+      const res = await fetch("/api/inset-days", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ insetDays }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setInsetError(d?.error || "Save failed");
+      }
+    } catch {
+      setInsetError("Network error");
+    } finally {
+      setInsetSaving(false);
+    }
+  }
+
+  function addInsetDay() {
+    setInsetDays((prev) => [
+      ...prev,
+      { id: `inset-${Date.now()}-${prev.length}`, event_date: "", label: "INSET Day", day_type: "inset" as const },
+    ]);
+  }
+
+  function updateInsetDay(id: string, patch: Partial<InsetEntry>) {
+    setInsetDays((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+  }
+
+  function removeInsetDay(id: string) {
+    setInsetDays((prev) => prev.filter((d) => d.id !== id));
+  }
+
+  function toggleNightOff(day: string) {
+    setBoundaries((prev) => ({
+      ...prev,
+      nights_off: prev.nights_off.includes(day)
+        ? prev.nights_off.filter((d) => d !== day)
+        : [...prev.nights_off, day],
+    }));
+  }
 
   function termStatus(term: TermEntry) {
     if (!term.termStartDate || !term.termEndDate) return "Inactive";
@@ -673,6 +778,65 @@ export default function SettingsPage() {
           <SaveBar onSave={() => saveSection("terms", [postTerms])} status={sectionStatus.terms} error={sectionErrors.terms} />
         </div>
 
+        {/* ── INSET Days & Closures ── */}
+        <div className="card">
+          <SectionLabel>INSET Days &amp; Closures</SectionLabel>
+          <p style={{ margin: "0 0 1rem", fontSize: "0.82rem", color: "var(--muted)" }}>
+            Mark non-teaching days within term — INSET, bank holidays, and school closures. These will be excluded from workload planning.
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
+            {insetDays.map((entry) => (
+              <div key={entry.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: "0.5rem", alignItems: "center" }}>
+                <input
+                  type="date"
+                  value={entry.event_date}
+                  onChange={(e) => updateInsetDay(entry.id, { event_date: e.target.value })}
+                  style={SELECT_STYLE}
+                />
+                <input
+                  type="text"
+                  value={entry.label}
+                  onChange={(e) => updateInsetDay(entry.id, { label: e.target.value })}
+                  placeholder="Label"
+                  style={{ ...SELECT_STYLE, backgroundImage: "none" }}
+                />
+                <select
+                  value={entry.day_type}
+                  onChange={(e) => updateInsetDay(entry.id, { day_type: e.target.value as "inset" | "bank_holiday" | "closure" })}
+                  style={SELECT_STYLE}
+                >
+                  <option value="inset">INSET</option>
+                  <option value="bank_holiday">Bank Holiday</option>
+                  <option value="closure">Closure</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => removeInsetDay(entry.id)}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontSize: "1.2rem", padding: "0.2rem 0.4rem", lineHeight: 1 }}
+                  aria-label="Remove"
+                >×</button>
+              </div>
+            ))}
+            <button type="button" className="button secondary" onClick={addInsetDay} style={{ alignSelf: "flex-start" }}>
+              Add day
+            </button>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "1.1rem", paddingTop: "0.85rem", borderTop: "1px solid var(--border)" }}>
+            <button
+              type="button"
+              onClick={() => { void saveInsetDays(); }}
+              disabled={insetSaving}
+              className="nav-btn-cta"
+              style={{ padding: "0.48rem 1.2rem", fontSize: "0.84rem", borderRadius: "9px", opacity: insetSaving ? 0.7 : 1 }}
+            >
+              {insetSaving ? "Saving…" : "Save"}
+            </button>
+            {insetError && <span style={{ fontSize: "0.82rem", color: "#fc8181" }}>{insetError}</span>}
+          </div>
+        </div>
+
         {/* ── Teaching Tone ── */}
         <div className="card">
           <SectionLabel>Teaching Tone</SectionLabel>
@@ -961,6 +1125,201 @@ export default function SettingsPage() {
             desc="Automatically save each generated lesson pack to your library."
           />
           <SaveBar onSave={() => saveSection("prefs", [postProfile])} status={sectionStatus.prefs} error={sectionErrors.prefs} />
+        </div>
+
+        {/* ── Working Hours & Boundaries ──────────────────────────────── */}
+        <div className="card">
+          <SectionLabel>Working Hours &amp; Boundaries</SectionLabel>
+          <p style={{ margin: "0 0 1.25rem", fontSize: "0.82rem", color: "var(--muted)" }}>
+            Set your working day and protect personal time. PrimaryAI uses these to flag overloaded days and suggest adjustments.
+          </p>
+
+          {/* Work day start / end */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1rem" }}>
+            <div>
+              <label style={FIELD_LABEL_STYLE}>Work day starts</label>
+              <input
+                type="time"
+                value={boundaries.work_day_start}
+                onChange={(e) => setBoundaries((prev) => ({ ...prev, work_day_start: e.target.value }))}
+                style={{ ...SELECT_STYLE, backgroundImage: "none", paddingRight: "0.75rem" }}
+              />
+            </div>
+            <div>
+              <label style={FIELD_LABEL_STYLE}>Work day ends</label>
+              <input
+                type="time"
+                value={boundaries.work_day_end}
+                onChange={(e) => setBoundaries((prev) => ({ ...prev, work_day_end: e.target.value }))}
+                style={{ ...SELECT_STYLE, backgroundImage: "none", paddingRight: "0.75rem" }}
+              />
+            </div>
+          </div>
+
+          {/* Protect lunch */}
+          <Toggle
+            checked={boundaries.protect_lunch}
+            onChange={(v) => setBoundaries((prev) => ({ ...prev, protect_lunch: v }))}
+            label="Protect lunch break"
+            desc="Flag events that clash with your lunch window."
+          />
+          {boundaries.protect_lunch && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginTop: "0.75rem" }}>
+              <div>
+                <label style={FIELD_LABEL_STYLE}>Lunch starts</label>
+                <input
+                  type="time"
+                  value={boundaries.lunch_start}
+                  onChange={(e) => setBoundaries((prev) => ({ ...prev, lunch_start: e.target.value }))}
+                  style={{ ...SELECT_STYLE, backgroundImage: "none", paddingRight: "0.75rem" }}
+                />
+              </div>
+              <div>
+                <label style={FIELD_LABEL_STYLE}>Lunch ends</label>
+                <input
+                  type="time"
+                  value={boundaries.lunch_end}
+                  onChange={(e) => setBoundaries((prev) => ({ ...prev, lunch_end: e.target.value }))}
+                  style={{ ...SELECT_STYLE, backgroundImage: "none", paddingRight: "0.75rem" }}
+                />
+              </div>
+            </div>
+          )}
+
+          <div style={{ height: "1px", background: "var(--border)", margin: "1rem 0" }} />
+
+          {/* Nights off */}
+          <div style={{ marginBottom: "1rem" }}>
+            <label style={FIELD_LABEL_STYLE}>Protected evenings (nights off)</label>
+            <p style={{ margin: "0 0 0.6rem", fontSize: "0.78rem", color: "var(--muted)" }}>No work planning will be suggested on these evenings.</p>
+            <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+              {(["mon","tue","wed","thu","fri","sat","sun"] as const).map((day) => {
+                const selected = boundaries.nights_off.includes(day);
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => toggleNightOff(day)}
+                    style={{
+                      padding: "0.3rem 0.75rem",
+                      borderRadius: "999px",
+                      border: `1.5px solid ${selected ? "var(--accent)" : "var(--border)"}`,
+                      background: selected ? "rgb(var(--accent-rgb) / 0.12)" : "transparent",
+                      color: selected ? "var(--accent)" : "var(--muted)",
+                      fontSize: "0.8rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      textTransform: "capitalize",
+                      transition: "all 150ms ease",
+                    }}
+                  >
+                    {day.charAt(0).toUpperCase() + day.slice(1)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ height: "1px", background: "var(--border)", margin: "1rem 0" }} />
+
+          {/* Suggestion tone */}
+          <div style={{ marginBottom: "1rem" }}>
+            <label style={FIELD_LABEL_STYLE}>Suggestion tone</label>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              {([
+                { value: "direct", label: "Direct", desc: "Straight to the point — no softening language" },
+                { value: "neutral", label: "Neutral", desc: "Clear and balanced" },
+                { value: "warm", label: "Warm", desc: "Encouraging and supportive phrasing" },
+              ] as const).map(({ value, label, desc }) => {
+                const selected = boundaries.suggestion_tone === value;
+                return (
+                  <div
+                    key={value}
+                    onClick={() => setBoundaries((prev) => ({ ...prev, suggestion_tone: value }))}
+                    style={{
+                      display: "flex", alignItems: "center", gap: "0.75rem",
+                      padding: "0.65rem 0.9rem",
+                      borderRadius: "10px",
+                      border: `1.5px solid ${selected ? "var(--accent)" : "var(--border)"}`,
+                      background: selected ? "rgb(var(--accent-rgb) / 0.06)" : "transparent",
+                      cursor: "pointer",
+                      transition: "all 150ms ease",
+                    }}
+                  >
+                    <div style={{
+                      width: "16px", height: "16px", borderRadius: "50%", flexShrink: 0,
+                      border: `2px solid ${selected ? "var(--accent)" : "var(--border)"}`,
+                      background: selected ? "var(--accent)" : "transparent",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      {selected && <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "white", display: "block" }} />}
+                    </div>
+                    <div>
+                      <p style={{ margin: 0, fontSize: "0.86rem", fontWeight: 600, color: "var(--text)" }}>{label}</p>
+                      <p style={{ margin: 0, fontSize: "0.76rem", color: "var(--muted)" }}>{desc}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ height: "1px", background: "var(--border)", margin: "1rem 0" }} />
+
+          {/* Accessibility */}
+          <Toggle
+            checked={boundaries.dyslexia_font}
+            onChange={(v) => setBoundaries((prev) => ({ ...prev, dyslexia_font: v }))}
+            label="Dyslexia-friendly font"
+            desc="Use OpenDyslexic throughout the app."
+          />
+          <div style={{ height: "1px", background: "var(--border)", margin: "0.75rem 0" }} />
+          <Toggle
+            checked={boundaries.reduce_motion}
+            onChange={(v) => setBoundaries((prev) => ({ ...prev, reduce_motion: v }))}
+            label="Reduce motion"
+            desc="Minimise animations and transitions."
+          />
+
+          <div style={{ height: "1px", background: "var(--border)", margin: "1rem 0" }} />
+
+          {/* Countdown mode */}
+          <div>
+            <label style={FIELD_LABEL_STYLE}>Countdown style</label>
+            <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+              {([
+                { value: "days", label: "Days" },
+                { value: "sleeps", label: "Sleeps" },
+                { value: "getups", label: "Get-ups" },
+              ] as const).map(({ value, label }) => {
+                const selected = boundaries.countdown_mode === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setBoundaries((prev) => ({ ...prev, countdown_mode: value }))}
+                    style={{
+                      padding: "0.3rem 0.9rem",
+                      borderRadius: "999px",
+                      border: `1.5px solid ${selected ? "var(--accent)" : "var(--border)"}`,
+                      background: selected ? "rgb(var(--accent-rgb) / 0.12)" : "transparent",
+                      color: selected ? "var(--accent)" : "var(--muted)",
+                      fontSize: "0.82rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      transition: "all 150ms ease",
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <SaveBar onSave={() => saveSection("boundaries", [postBoundaries])} status={sectionStatus.boundaries} error={sectionErrors.boundaries} />
         </div>
 
         <DangerZone />

@@ -123,7 +123,7 @@ const INITIAL_PREFERENCES: Preferences = {
   palette: "slate",
 };
 
-const MIN_CLASS_NOTES_CHARS = 200;
+const MIN_CLASS_NOTES_CHARS = 0;
 
 const STEPS = [
   { label: "Profile",          subtitle: "Set your name and photo so your workspace feels personal." },
@@ -135,6 +135,11 @@ const STEPS = [
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
+
+const PII_NAME_PATTERN = /\b[A-Z][a-z]{1,14}\s+[A-Z][a-z]{1,14}\b/;
+function likelyContainsName(text: string): boolean {
+  return PII_NAME_PATTERN.test(text);
+}
 
 function isSafeNextPath(value: string) {
   return value.startsWith("/") && !value.startsWith("//");
@@ -1094,9 +1099,27 @@ export default function ProfileSetupPage() {
 
               <div>
                 <label style={{ ...FIELD_LABEL, marginBottom: "0.4rem" }}>About my class</label>
+
+                {/* GDPR safeguard notice */}
+                <div style={{
+                  display: "flex", gap: "0.6rem", alignItems: "flex-start",
+                  padding: "0.65rem 0.85rem", borderRadius: "10px", marginBottom: "0.65rem",
+                  background: "rgb(251 191 36 / 0.08)", border: "1px solid rgb(251 191 36 / 0.35)",
+                }}>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, marginTop: "1px" }}>
+                    <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8z" fill="#f59e0b" />
+                    <path d="M8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4zm0 7.5a.875.875 0 1 1 0-1.75.875.875 0 0 1 0 1.75z" fill="#f59e0b" />
+                  </svg>
+                  <p style={{ margin: 0, fontSize: "0.78rem", color: "var(--text)", lineHeight: 1.5 }}>
+                    <strong>Data protection reminder:</strong> Do not include any information that could identify an individual
+                    pupil — no names, initials, dates of birth, or personal details. Describe your class using general
+                    characteristics only (e.g. "6 EAL learners", "a TA supports a lower group of 8").
+                    This is a requirement of UK GDPR and your school's data protection policy.
+                  </p>
+                </div>
+
                 <p style={{ margin: "0 0 0.6rem", fontSize: "0.78rem", color: "var(--muted)" }}>
                   Tell the AI anything specific about your class — scheme of work, EAL learners, TA support, grouping, or anything else that should shape the content.
-                  This must be at least 200 characters before lesson packs can be generated.
                 </p>
                 <textarea
                   value={profile.classNotes}
@@ -1105,16 +1128,23 @@ export default function ProfileSetupPage() {
                   rows={4}
                   style={{
                     width: "100%", boxSizing: "border-box", resize: "vertical",
-                    border: "1px solid var(--border)", background: "var(--field-bg)", color: "var(--text)",
+                    border: likelyContainsName(profile.classNotes) ? "1.5px solid #f59e0b" : "1px solid var(--border)",
+                    background: "var(--field-bg)", color: "var(--text)",
                     borderRadius: "10px", padding: "0.65rem 0.75rem", fontSize: "0.87rem",
                     fontFamily: "inherit", lineHeight: 1.6, outline: "none",
+                    transition: "border-color 200ms ease",
                   }}
                 />
-                <p style={{ margin: "0.55rem 0 0", fontSize: "0.78rem", color: classNotesRemaining === 0 ? "#4ade80" : "var(--muted)" }}>
-                  Minimum {MIN_CLASS_NOTES_CHARS} characters required.{" "}
-                  {classNotesLength} entered
-                  {classNotesRemaining > 0 ? ` (${classNotesRemaining} more needed)` : " (requirement met)"}
-                </p>
+                {likelyContainsName(profile.classNotes) && (
+                  <p style={{ margin: "0.4rem 0 0", fontSize: "0.78rem", color: "#f59e0b", fontWeight: 600 }}>
+                    This text may contain a pupil name. Please remove any identifiable personal information before saving.
+                  </p>
+                )}
+                {!likelyContainsName(profile.classNotes) && classNotesLength > 0 && (
+                  <p style={{ margin: "0.4rem 0 0", fontSize: "0.78rem", color: "#4ade80" }}>
+                    No names detected. Good to go.
+                  </p>
+                )}
               </div>
             </div>
           )}

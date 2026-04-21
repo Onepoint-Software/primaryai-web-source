@@ -142,6 +142,7 @@ export async function GET(req: Request) {
     .from("personal_tasks")
     .select("*")
     .eq("user_id", session.userId)
+    .is("deleted_at", null)
     .order("completed", { ascending: true })
     .order("due_date", { ascending: true })
     .order("created_at", { ascending: false });
@@ -241,6 +242,15 @@ export async function POST(req: Request) {
   const dueDate = String(body?.dueDate || "").trim();
   const dueTime = normaliseDueTime(body?.dueTime);
   const importance = normaliseImportance(body?.importance);
+  const VALID_PRIORITIES = ["p1", "p2", "p3", "p4"];
+  const VALID_LABELS = ["planning", "marking", "admin", "personal", "send"];
+  const priority = body?.priority !== undefined
+    ? (VALID_PRIORITIES.includes(String(body.priority || "").toLowerCase()) ? String(body.priority).toLowerCase() : null)
+    : null;
+  const label = body?.label !== undefined
+    ? (VALID_LABELS.includes(String(body.label || "").toLowerCase()) ? String(body.label).toLowerCase() : null)
+    : null;
+  const snoozedUntil = body?.snoozedUntil && /^\d{4}-\d{2}-\d{2}$/.test(String(body.snoozedUntil)) ? String(body.snoozedUntil) : null;
 
   if (!title) {
     return NextResponse.json({ error: "Task title is required" }, { status: 400 });
@@ -260,6 +270,9 @@ export async function POST(req: Request) {
         due_date: dueDate,
         due_time: dueTime,
         importance,
+        priority,
+        label,
+        snoozed_until: snoozedUntil,
         completed: false,
       })
       .select("*")

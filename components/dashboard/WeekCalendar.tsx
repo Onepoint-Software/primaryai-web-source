@@ -19,6 +19,7 @@ export type ScheduleEvent = {
   endTime: string; // HH:MM
   notes?: string;
   allDay?: boolean;
+  effort?: "low" | "medium" | "high" | null;
 };
 
 export type CalendarViewMode = "week" | "day" | "month" | "term";
@@ -420,6 +421,41 @@ export default function WeekCalendar({
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [filterMenuOpen]);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName ?? "";
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if ((e.target as HTMLElement)?.isContentEditable) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      switch (e.key) {
+        case "ArrowLeft":
+          e.preventDefault();
+          onNavigate(-1);
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          onNavigate(1);
+          break;
+        case "t":
+        case "T":
+          e.preventDefault();
+          onGoToday();
+          break;
+        case "n":
+        case "N":
+          e.preventDefault();
+          if (onEmptySlotClick) {
+            const todayStr = cursorDate.toISOString().slice(0, 10);
+            onEmptySlotClick(todayStr, "09:00");
+          }
+          break;
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onNavigate, onGoToday, onEmptySlotClick, cursorDate]);
 
   const calendarGridStyle = useMemo(() => {
     if (viewMode === "day") {
@@ -878,6 +914,19 @@ export default function WeekCalendar({
                             </span>
                             <span className="scheduler-event-title-row">
                               <span className="scheduler-event-title" style={{ textDecoration: isDoneTask ? "line-through" : undefined }}>{evt.title}</span>
+                              {evt.effort && (
+                                <span
+                                  title={`Marking load: ${evt.effort}`}
+                                  style={{
+                                    display: "inline-block",
+                                    width: "7px",
+                                    height: "7px",
+                                    borderRadius: "50%",
+                                    flexShrink: 0,
+                                    background: evt.effort === "high" ? "#ef4444" : evt.effort === "medium" ? "#f59e0b" : "#22c55e",
+                                  }}
+                                />
+                              )}
                             </span>
                             <span className="scheduler-event-time" style={{ textDecoration: isDoneTask ? "line-through" : undefined }}>
                               {evt.startTime}–{evt.endTime}

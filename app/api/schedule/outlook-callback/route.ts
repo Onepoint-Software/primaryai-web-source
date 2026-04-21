@@ -4,6 +4,7 @@ import { exchangeMicrosoftCode, fetchMicrosoftProfile, isOutlookConfigured } fro
 import { backfillExistingScheduleEventsToOutlook, syncOutlookCalendar } from "@/lib/outlook-sync";
 import { formatSupabaseError, isMissingRelationError } from "@/lib/supabase-errors";
 import { getSupabaseAdminClient } from "@/lib/supabase";
+import { encryptToken } from "@/lib/token-crypto";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -55,13 +56,18 @@ export async function GET(request: Request) {
     const expiresAt = new Date(Date.now() + Number(tokenData.expires_in || 3600) * 1000).toISOString();
     const profile = await fetchMicrosoftProfile(accessToken);
 
+    const [encAccess, encRefresh] = await Promise.all([
+      encryptToken(accessToken),
+      refreshToken ? encryptToken(refreshToken) : Promise.resolve(null),
+    ]);
+
     const { error } = await supabase.from("outlook_calendar_connections").upsert(
       {
         user_id: session.userId,
         microsoft_user_id: String(profile?.id || ""),
         email: String(profile?.mail || profile?.userPrincipalName || ""),
-        access_token: accessToken,
-        refresh_token: refreshToken,
+        access_token: encAccess,
+        refresh_token: encRefresh,
         expires_at: expiresAt,
         scope: typeof tokenData.scope === "string" ? tokenData.scope : null,
         updated_at: new Date().toISOString(),

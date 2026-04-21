@@ -16,7 +16,7 @@ export default function LandingRightPanel() {
           <h2 className="landing-waitlist-heading">Be among the first to try PrimaryAI</h2>
           <p className="landing-waitlist-text">Join the waitlist for early access and help shape the product.</p>
           <p className="landing-footer-note landing-footer-note--plain">
-            Launching Spring 2026 | Design &amp; Build by{" "}
+            Design &amp; Build by{" "}
             <a className="landing-onepoint-link" href="https://www.onepointconsult.com">
               onepointconsult.com
             </a>

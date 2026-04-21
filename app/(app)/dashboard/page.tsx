@@ -59,6 +59,9 @@ type PersonalTask = {
   due_date: string;
   due_time?: string | null;
   importance: "low" | "high";
+  priority?: "p1" | "p2" | "p3" | "p4" | null;
+  label?: "planning" | "marking" | "admin" | "personal" | "send" | null;
+  snoozed_until?: string | null;
   completed: boolean;
   schedule_event_id?: string | null;
   created_at: string;
@@ -609,6 +612,92 @@ function ActionCard({ href, icon, title, desc, accent = false }: {
   );
 }
 
+type WorkloadSuggestion = {
+  id: string;
+  type: string;
+  severity: "info" | "warning" | "critical";
+  title: string;
+  body: string;
+  date?: string;
+  actionLabel?: string;
+  actionHref?: string;
+};
+
+function WorkloadSuggestionsStrip() {
+  const [suggestions, setSuggestions] = useState<WorkloadSuggestion[]>([]);
+  const [dismissed, setDismissed] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try { return new Set(JSON.parse(sessionStorage.getItem("pa:dismissed-suggestions") || "[]")); } catch { return new Set(); }
+  });
+
+  useEffect(() => {
+    fetch("/api/workload/suggestions", { cache: "no-store" })
+      .then((r) => r.json())
+      .catch(() => ({}))
+      .then((data) => {
+        if (Array.isArray(data?.suggestions)) setSuggestions(data.suggestions);
+      });
+  }, []);
+
+  function dismiss(id: string) {
+    setDismissed((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("pa:dismissed-suggestions", JSON.stringify([...next]));
+      }
+      return next;
+    });
+  }
+
+  const visible = suggestions.filter((s) => !dismissed.has(s.id)).slice(0, 4);
+  if (visible.length === 0) return null;
+
+  const SEVERITY_COLORS = { critical: "#ef4444", warning: "#f59e0b", info: "#3b82f6" };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem", marginBottom: "0.25rem" }}>
+      <p style={{ margin: 0, fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--muted)" }}>
+        Workload Insights
+      </p>
+      {visible.map((s) => {
+        const color = SEVERITY_COLORS[s.severity];
+        return (
+          <div
+            key={s.id}
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "0.6rem",
+              padding: "0.65rem 0.8rem",
+              borderRadius: "12px",
+              border: `1px solid color-mix(in srgb, ${color} 30%, var(--border))`,
+              background: `color-mix(in srgb, ${color} 5%, var(--surface))`,
+            }}
+          >
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: color, flexShrink: 0, marginTop: "4px" }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: "0.82rem", fontWeight: 600, color: "var(--text)" }}>{s.title}</p>
+              <p style={{ margin: "0.1rem 0 0", fontSize: "0.76rem", color: "var(--muted)", lineHeight: 1.45 }}>{s.body}</p>
+              {s.actionHref && s.actionLabel && (
+                <Link href={s.actionHref} style={{ display: "inline-block", marginTop: "0.35rem", fontSize: "0.73rem", fontWeight: 600, color, textDecoration: "none" }}>
+                  {s.actionLabel} →
+                </Link>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => dismiss(s.id)}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", padding: "2px", fontSize: "0.9rem", lineHeight: 1, flexShrink: 0 }}
+              aria-label="Dismiss"
+            >×</button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function PersonalTasksCard({
   tasks,
   onTasksChange,
@@ -620,11 +709,17 @@ function PersonalTasksCard({
 }) {
   const [saving, setSaving] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"today" | "week" | "later" | "trash">("today");
+  const [deletedTasks, setDeletedTasks] = useState<(PersonalTask & { deleted_at: string })[]>([]);
+  const [deletedLoading, setDeletedLoading] = useState(false);
   const [taskDraft, setTaskDraft] = useState({
     title: "",
     due_date: toISODate(new Date()),
     due_time: "16:00",
     importance: "low" as "low" | "high",
+    priority: null as "p1" | "p2" | "p3" | "p4" | null,
+    label: null as "planning" | "marking" | "admin" | "personal" | "send" | null,
+    snoozed_until: null as string | null,
     completed: false,
   });
   const [editingTask, setEditingTask] = useState<PersonalTask | null>(null);
@@ -638,6 +733,31 @@ function PersonalTasksCard({
     }
   }
 
+  async function loadDeletedTasks() {
+    setDeletedLoading(true);
+    const res = await fetch("/api/tasks/deleted", { cache: "no-store" });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && Array.isArray(data?.tasks)) {
+      setDeletedTasks(data.tasks);
+    }
+    setDeletedLoading(false);
+  }
+
+  async function restoreTask(id: string) {
+    setSaving(true);
+    await fetch(`/api/tasks/${id}/restore`, { method: "POST" });
+    await Promise.all([refreshTasks(), loadDeletedTasks()]);
+    setSaving(false);
+    onScheduleRefresh();
+  }
+
+  async function emptyTrash() {
+    setSaving(true);
+    await fetch("/api/tasks/deleted", { method: "DELETE" });
+    setDeletedTasks([]);
+    setSaving(false);
+  }
+
   function openCreateModal() {
     setComposerOpen(true);
     setEditingTask(null);
@@ -646,6 +766,9 @@ function PersonalTasksCard({
       due_date: toISODate(new Date()),
       due_time: "16:00",
       importance: "low",
+      priority: null,
+      label: null,
+      snoozed_until: null,
       completed: false,
     });
     setError("");
@@ -659,6 +782,9 @@ function PersonalTasksCard({
       due_date: task.due_date,
       due_time: task.due_time ? String(task.due_time).slice(0, 5) : "16:00",
       importance: task.importance,
+      priority: task.priority ?? null,
+      label: task.label ?? null,
+      snoozed_until: task.snoozed_until ?? null,
       completed: Boolean(task.completed),
     });
     setError("");
@@ -688,6 +814,9 @@ function PersonalTasksCard({
           dueDate: taskDraft.due_date,
           dueTime: taskDraft.due_time,
           importance: taskDraft.importance,
+          priority: taskDraft.priority,
+          label: taskDraft.label,
+          snoozedUntil: taskDraft.snoozed_until,
           completed: taskDraft.completed,
         }),
       });
@@ -745,12 +874,41 @@ function PersonalTasksCard({
     }
   }
 
-  const sortedTasks = [...tasks].sort((a, b) => {
-    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+  const PRIORITY_COLORS: Record<string, string> = { p1: "#ef4444", p2: "#f97316", p3: "#3b82f6", p4: "#6b7280" };
+  const LABEL_COLORS: Record<string, string> = { planning: "#8b5cf6", marking: "#f59e0b", admin: "#6b7280", personal: "#10b981", send: "#3b82f6" };
+
+  const now = new Date();
+  const todayIso = toISODate(now);
+  const endOfWeek = new Date(now);
+  endOfWeek.setDate(endOfWeek.getDate() + (7 - endOfWeek.getDay() || 7));
+  const endOfWeekIso = toISODate(endOfWeek);
+
+  const activeTasks = tasks.filter((t) => {
+    if (t.completed) return false;
+    if (t.snoozed_until && t.snoozed_until > todayIso) return false;
+    return true;
+  });
+
+  const tabTasks = activeTasks.filter((t) => {
+    if (activeTab === "today") return t.due_date <= todayIso;
+    if (activeTab === "week") return t.due_date > todayIso && t.due_date <= endOfWeekIso;
+    return t.due_date > endOfWeekIso;
+  });
+
+  const priorityOrder: Record<string, number> = { p1: 0, p2: 1, p3: 2, p4: 3, null: 4, undefined: 4 };
+  const sortedTabTasks = [...tabTasks].sort((a, b) => {
+    const pa = priorityOrder[String(a.priority ?? "null")] ?? 4;
+    const pb = priorityOrder[String(b.priority ?? "null")] ?? 4;
+    if (pa !== pb) return pa - pb;
     if (a.due_date !== b.due_date) return a.due_date.localeCompare(b.due_date);
     return String(a.due_time || "23:59").localeCompare(String(b.due_time || "23:59"));
   });
-  const visibleTasks = sortedTasks.slice(0, 6);
+
+  const tabCounts = {
+    today: activeTasks.filter((t) => t.due_date <= todayIso).length,
+    week: activeTasks.filter((t) => t.due_date > todayIso && t.due_date <= endOfWeekIso).length,
+    later: activeTasks.filter((t) => t.due_date > endOfWeekIso).length,
+  };
 
   return (
     <div className="personal-tasks-card">
@@ -759,44 +917,138 @@ function PersonalTasksCard({
           Personal To-Do
         </p>
         <div className="personal-tasks-header-actions">
-          <span className="personal-tasks-count">{sortedTasks.filter((t) => !t.completed).length} open</span>
+          <span className="personal-tasks-count">{activeTasks.length} open</span>
           <button className="button personal-task-add-btn" onClick={openCreateModal}>
             New task
           </button>
         </div>
       </div>
 
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: "0.15rem", marginBottom: "0.75rem", borderBottom: "1px solid var(--border)", paddingBottom: "0.5rem" }}>
+        {(["today", "week", "later", "trash"] as const).map((tab) => {
+          const labels = { today: "Today", week: "This Week", later: "Later", trash: "Trash" };
+          const active = activeTab === tab;
+          const count = tab === "trash" ? deletedTasks.length : tabCounts[tab as keyof typeof tabCounts];
+          return (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => {
+                setActiveTab(tab);
+                if (tab === "trash") loadDeletedTasks();
+              }}
+              style={{
+                padding: "0.28rem 0.7rem",
+                borderRadius: "7px",
+                border: "none",
+                background: active ? (tab === "trash" ? "rgb(239 68 68 / 0.1)" : "rgb(var(--accent-rgb) / 0.12)") : "transparent",
+                color: active ? (tab === "trash" ? "#ef4444" : "var(--accent)") : "var(--muted)",
+                fontSize: "0.78rem",
+                fontWeight: active ? 700 : 500,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.3rem",
+              }}
+            >
+              {labels[tab]}
+              {(count ?? 0) > 0 && (
+                <span style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  minWidth: "16px", height: "16px", borderRadius: "99px",
+                  background: active ? (tab === "trash" ? "#ef4444" : "var(--accent)") : "var(--border)",
+                  color: active ? "white" : "var(--muted)",
+                  fontSize: "0.68rem", fontWeight: 700, padding: "0 4px",
+                }}>{count}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {activeTab === "trash" ? (
+        <div>
+          {deletedLoading ? (
+            <p className="personal-tasks-empty">Loading…</p>
+          ) : deletedTasks.length === 0 ? (
+            <p className="personal-tasks-empty">Trash is empty.</p>
+          ) : (
+            <>
+              <div className="personal-tasks-list">
+                {deletedTasks.map((task) => {
+                  const deletedLabel = new Date(task.deleted_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+                  return (
+                    <div key={task.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.4rem 0.5rem", borderBottom: "1px solid var(--border)", opacity: 0.75 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ margin: 0, fontSize: "0.85rem", fontWeight: 600, color: "var(--fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.title}</p>
+                        <p style={{ margin: 0, fontSize: "0.73rem", color: "var(--muted)" }}>Due {task.due_date} · Deleted {deletedLabel}</p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => restoreTask(task.id)}
+                        style={{ padding: "0.22rem 0.6rem", borderRadius: "6px", border: "1px solid var(--border)", background: "transparent", color: "var(--accent)", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
+                      >
+                        Restore
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={emptyTrash}
+                style={{ marginTop: "0.75rem", width: "100%", padding: "0.35rem", borderRadius: "7px", border: "1px solid #fca5a5", background: "transparent", color: "#ef4444", fontSize: "0.78rem", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Empty trash
+              </button>
+            </>
+          )}
+        </div>
+      ) : (
       <div className="personal-tasks-list">
-        {sortedTasks.length === 0 ? (
-          <p className="personal-tasks-empty">No tasks yet.</p>
+        {sortedTabTasks.length === 0 ? (
+          <p className="personal-tasks-empty">
+            {activeTab === "today" ? "Nothing due today." : activeTab === "week" ? "Nothing due this week." : "No tasks later."}
+          </p>
         ) : (
-          visibleTasks.map((task) => {
-            const now = new Date();
-            const nowIso = toISODate(now);
-            const nowTime = now.toTimeString().slice(0, 5);
+          sortedTabTasks.map((task) => {
             const taskTime = task.due_time ? String(task.due_time).slice(0, 5) : "23:59";
-            const isOverdue = !task.completed && (
-              task.due_date < nowIso ||
-              (task.due_date === nowIso && taskTime < nowTime)
-            );
+            const nowTime = now.toTimeString().slice(0, 5);
+            const isOverdue = task.due_date < todayIso || (task.due_date === todayIso && taskTime < nowTime);
             const dueLabel = new Date(`${task.due_date}T00:00:00`).toLocaleDateString("en-GB", {
               weekday: "short",
               day: "numeric",
               month: "short",
             });
+            const priorityColor = task.priority ? PRIORITY_COLORS[task.priority] : null;
+            const labelColor = task.label ? LABEL_COLORS[task.label] : null;
             return (
               <button
                 key={task.id}
                 type="button"
-                className={`personal-task-row${task.completed ? " is-completed" : ""}${isOverdue ? " is-overdue" : ""}`}
+                className={`personal-task-row${isOverdue ? " is-overdue" : ""}`}
                 onClick={() => openEditModal(task)}
               >
                 <div className="personal-task-row-main">
-                  <span className={`personal-task-status-dot${task.completed ? " is-completed" : ""}${isOverdue ? " is-overdue" : ""}`} />
-                  <div style={{ minWidth: 0 }}>
+                  <span className={`personal-task-status-dot${isOverdue ? " is-overdue" : ""}`} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     <p className="personal-task-title">{task.title}</p>
-                    <p className="personal-task-meta">
-                      Due {dueLabel}{task.due_time ? ` at ${String(task.due_time).slice(0, 5)}` : ""} · <span className={`personal-task-priority ${task.importance === "high" ? "is-high" : "is-low"}`}>{task.importance === "high" ? "High" : "Low"} importance</span>
+                    <p className="personal-task-meta" style={{ display: "flex", alignItems: "center", gap: "0.35rem", flexWrap: "wrap" }}>
+                      <span>Due {dueLabel}{task.due_time ? ` at ${String(task.due_time).slice(0, 5)}` : ""}</span>
+                      {task.priority && (
+                        <span style={{ padding: "1px 5px", borderRadius: "5px", fontSize: "0.68rem", fontWeight: 700, background: `color-mix(in srgb, ${priorityColor} 15%, transparent)`, color: priorityColor!, border: `1px solid color-mix(in srgb, ${priorityColor} 35%, transparent)` }}>
+                          {task.priority.toUpperCase()}
+                        </span>
+                      )}
+                      {task.label && (
+                        <span style={{ padding: "1px 5px", borderRadius: "5px", fontSize: "0.68rem", fontWeight: 600, background: `color-mix(in srgb, ${labelColor} 12%, transparent)`, color: labelColor!, border: `1px solid color-mix(in srgb, ${labelColor} 30%, transparent)`, textTransform: "capitalize" }}>
+                          {task.label}
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -805,12 +1057,8 @@ function PersonalTasksCard({
             );
           })
         )}
-        {sortedTasks.length > visibleTasks.length ? (
-          <p className="personal-tasks-more">
-            Showing {visibleTasks.length} of {sortedTasks.length} tasks
-          </p>
-        ) : null}
       </div>
+      )}
 
       {(composerOpen || editingTask) ? (
         <div className="scheduler-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) closeTaskModal(); }}>
@@ -859,16 +1107,45 @@ function PersonalTasksCard({
                   className="scheduler-modal-input"
                 />
               </label>
-              <label className="scheduler-modal-field">
+              <div className="scheduler-modal-field" style={{ gridColumn: "1 / -1" }}>
                 <span className="scheduler-modal-label">Priority</span>
-                <select
-                  value={taskDraft.importance}
-                  onChange={(e) => setTaskDraft((prev) => ({ ...prev, importance: e.target.value === "high" ? "high" : "low" }))}
+                <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
+                  {(["p1","p2","p3","p4"] as const).map((p) => {
+                    const sel = taskDraft.priority === p;
+                    const pc = PRIORITY_COLORS[p];
+                    return (
+                      <button key={p} type="button"
+                        onClick={() => setTaskDraft((prev) => ({ ...prev, priority: sel ? null : p }))}
+                        style={{ padding: "0.25rem 0.65rem", borderRadius: "7px", border: `1.5px solid ${sel ? pc : "var(--border)"}`, background: sel ? `color-mix(in srgb, ${pc} 15%, transparent)` : "transparent", color: sel ? pc : "var(--muted)", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                      >{p.toUpperCase()}</button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="scheduler-modal-field" style={{ gridColumn: "1 / -1" }}>
+                <span className="scheduler-modal-label">Label</span>
+                <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
+                  {(["planning","marking","admin","personal","send"] as const).map((lbl) => {
+                    const sel = taskDraft.label === lbl;
+                    const lc = LABEL_COLORS[lbl];
+                    return (
+                      <button key={lbl} type="button"
+                        onClick={() => setTaskDraft((prev) => ({ ...prev, label: sel ? null : lbl }))}
+                        style={{ padding: "0.25rem 0.65rem", borderRadius: "7px", border: `1.5px solid ${sel ? lc : "var(--border)"}`, background: sel ? `color-mix(in srgb, ${lc} 12%, transparent)` : "transparent", color: sel ? lc : "var(--muted)", fontSize: "0.78rem", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textTransform: "capitalize" }}
+                      >{lbl}</button>
+                    );
+                  })}
+                </div>
+              </div>
+              <label className="scheduler-modal-field">
+                <span className="scheduler-modal-label">Snooze until</span>
+                <input
+                  type="date"
+                  value={taskDraft.snoozed_until ?? ""}
+                  onChange={(e) => setTaskDraft((prev) => ({ ...prev, snoozed_until: e.target.value || null }))}
                   className="scheduler-modal-input"
-                >
-                  <option value="low">Low</option>
-                  <option value="high">High</option>
-                </select>
+                  min={todayIso}
+                />
               </label>
               {editingTask ? (
                 <label className="scheduler-modal-field" style={{ justifyContent: "flex-end" }}>
@@ -1196,6 +1473,48 @@ export default function DashboardPage() {
               <span className="dashboard-hero-value">–</span>
             )}
           </div>
+
+          {/* This week at a glance */}
+          {!loading && (() => {
+            const weekNow = new Date();
+            const weekMon = getMondayDate(weekNow);
+            const weekSun = new Date(weekMon);
+            weekSun.setDate(weekSun.getDate() + 6);
+            const wFrom = toISODate(weekMon);
+            const wTo = toISODate(weekSun);
+            const weekLessons = scheduleEvents.filter((e) => e.event_type === "lesson_pack" && e.scheduled_date >= wFrom && e.scheduled_date <= wTo);
+            const weekTasks = tasks.filter((t) => !t.completed && t.due_date >= wFrom && t.due_date <= wTo);
+            const todayStr = toISODate(weekNow);
+            const overdueTasks = tasks.filter((t) => !t.completed && t.due_date < todayStr);
+            const p1Tasks = tasks.filter((t) => !t.completed && t.priority === "p1");
+            if (weekLessons.length === 0 && weekTasks.length === 0 && overdueTasks.length === 0) return null;
+            const badges = [
+              weekLessons.length > 0 && { label: `${weekLessons.length} lesson${weekLessons.length !== 1 ? "s" : ""} this week`, color: "var(--accent)" },
+              weekTasks.length > 0 && { label: `${weekTasks.length} task${weekTasks.length !== 1 ? "s" : ""} due`, color: "#f59e0b" },
+              overdueTasks.length > 0 && { label: `${overdueTasks.length} overdue`, color: "#ef4444" },
+              p1Tasks.length > 0 && { label: `${p1Tasks.length} P1 open`, color: "#ef4444" },
+            ].filter(Boolean) as Array<{ label: string; color: string }>;
+            if (badges.length === 0) return null;
+            return (
+              <div style={{ padding: "0.75rem 1rem 0.5rem", display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
+                {badges.map((b) => (
+                  <span key={b.label} style={{
+                    display: "inline-flex", alignItems: "center", gap: "0.3rem",
+                    padding: "0.25rem 0.65rem",
+                    borderRadius: "999px",
+                    border: `1px solid color-mix(in srgb, ${b.color} 30%, var(--border))`,
+                    background: `color-mix(in srgb, ${b.color} 8%, var(--surface))`,
+                    color: b.color,
+                    fontSize: "0.74rem",
+                    fontWeight: 600,
+                  }}>
+                    <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: b.color, display: "inline-block" }} />
+                    {b.label}
+                  </span>
+                ))}
+              </div>
+            );
+          })()}
         </div>
 
         <div
@@ -1266,6 +1585,7 @@ export default function DashboardPage() {
           </div>
           <AiSchedulePanel onScheduleChange={handleScheduleMutation} />
           <div style={{ display: "flex", flexDirection: "column" as const, gap: "1rem" }}>
+          <WorkloadSuggestionsStrip />
           <PersonalTasksCard
             tasks={tasks}
             onTasksChange={setTasks}

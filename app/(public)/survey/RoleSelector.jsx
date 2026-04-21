@@ -2,7 +2,7 @@ const ROLE_CARDS = [
   {
     value: "teacher",
     badge: "T",
-    title: "Teacher",
+    title: "Class Teacher",
     subtitle: "Classroom planning, curriculum coverage, and day-to-day workload.",
   },
   {
@@ -28,10 +28,10 @@ const ROLE_CARDS = [
 export default function RoleSelector({ role, onSelect, onContinue }) {
   return (
     <section className="surveyx-card card">
-      <p className="survey-kicker">PrimaryAI Product Development</p>
-      <h1 className="survey-title">PrimaryAI - Educator Survey</h1>
-      <p className="muted survey-description">
-        Choose the role that best matches your perspective. We will adapt the survey sections to fit you.
+      <p className="surveyx-part-kicker">Step 1 of 1</p>
+      <h2 className="surveyx-part-title">Which role best describes you?</h2>
+      <p style={{ margin: "0 0 1.1rem", color: "var(--muted)", fontSize: "0.92rem", lineHeight: 1.55 }}>
+        We&apos;ll tailor the survey sections to what matters most for your perspective.
       </p>
 
       <div className="surveyx-role-grid">
@@ -49,10 +49,15 @@ export default function RoleSelector({ role, onSelect, onContinue }) {
         ))}
       </div>
 
-      <div className="surveyx-part-nav">
-        <span />
-        <button type="button" className="button surveyx-next-btn" disabled={!role} onClick={onContinue}>
-          Continue
+      <div className="surveyx-part-nav" style={{ justifyContent: "flex-end" }}>
+        <button
+          type="button"
+          className="button surveyx-next-btn"
+          disabled={!role}
+          onClick={onContinue}
+        >
+          Start survey
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
         </button>
       </div>
     </section>

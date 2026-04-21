@@ -77,7 +77,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const { id } = await params;
   const body = await req.json();
-  const { scheduledDate, startTime, endTime, notes, title, subject, yearGroup, eventCategory } = body ?? {};
+  const { scheduledDate, startTime, endTime, notes, title, subject, yearGroup, eventCategory, effort } = body ?? {};
 
   if (startTime && endTime && startTime >= endTime) {
     return NextResponse.json({ error: "startTime must be before endTime" }, { status: 400 });
@@ -92,6 +92,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (subject !== undefined) updates.subject = String(subject).trim();
   if (yearGroup !== undefined) updates.year_group = String(yearGroup).trim();
   if (eventCategory !== undefined) updates.event_category = eventCategory ? String(eventCategory).trim() : null;
+  if (effort !== undefined) {
+    const normalised = String(effort || "").toLowerCase();
+    updates.effort = ["low", "medium", "high"].includes(normalised) ? normalised : null;
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });

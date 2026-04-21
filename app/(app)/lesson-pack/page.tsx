@@ -1,6 +1,6 @@
 "use client";
 
-import { type ChangeEvent, type FormEvent, type ReactNode, useEffect, useState } from "react";
+import { type ChangeEvent, type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -58,6 +58,19 @@ type LessonPack = {
 
 type LessonPackResponse = LessonPack | { error: string };
 type ExportResponse = { ok: boolean; format: string; data: unknown } | { error: string };
+
+type ClassProfile = {
+  ealPercent: number | null;
+  pupilPremiumPercent: number | null;
+  aboveStandardPercent: number | null;
+  belowStandardPercent: number | null;
+  hugelyAboveStandardPercent: number | null;
+  hugelyBelowStandardPercent: number | null;
+  classNotes: string;
+  schoolType: string;
+  sendFocus: boolean;
+  abilityMix: string;
+};
 
 const YEAR_GROUPS = ["Reception", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6"];
 const MIN_CLASS_NOTES_CHARS = 200;
@@ -319,6 +332,12 @@ export default function LessonPackPage() {
     endTime: "10:00",
     notes: "",
   });
+  const isLibraryLoadRef = useRef(false);
+  const [classProfile, setClassProfile] = useState<ClassProfile | null>(null);
+  const [reflectQuestions, setReflectQuestions] = useState<string[]>([]);
+  const [reflectAcknowledged, setReflectAcknowledged] = useState<Record<number, boolean>>({});
+  const [reflectLoading, setReflectLoading] = useState(false);
+
   const [settingsChecklist, setSettingsChecklist] = useState({
     ealPercent: false,
     pupilPremiumPercent: false,
@@ -372,6 +391,33 @@ export default function LessonPackPage() {
     setReviewTouched(true);
     void trackTelemetry(event, payload);
   }
+
+  // Fetch class-specific reflection prompts after any new generation
+  useEffect(() => {
+    if (!result || !isPack(result)) return;
+    if (isLibraryLoadRef.current) {
+      isLibraryLoadRef.current = false;
+      return;
+    }
+    setReflectLoading(true);
+    setReflectQuestions([]);
+    setReflectAcknowledged({});
+    fetch("/api/lesson-pack/reflect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pack: result, profile: classProfile }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data?.questions) && data.questions.length > 0) {
+          setReflectQuestions(data.questions.slice(0, 4));
+        }
+      })
+      .catch(() => { /* non-blocking */ })
+      .finally(() => setReflectLoading(false));
+  // classProfile is stable after mount; result is the intended trigger
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
 
   function toggleGuidedFeedback(label: string) {
     setGuidedFeedback((prev) => {
@@ -460,6 +506,18 @@ export default function LessonPackPage() {
           hugelyBelowStandardPercent: hugelyBelowStandardPercent !== null,
           attainmentBandsValid: attainmentTotal <= 100,
         });
+        setClassProfile({
+          ealPercent,
+          pupilPremiumPercent,
+          aboveStandardPercent,
+          belowStandardPercent,
+          hugelyAboveStandardPercent,
+          hugelyBelowStandardPercent,
+          classNotes: String(profile.classNotes ?? ""),
+          schoolType: String(profile.schoolType ?? "primary"),
+          sendFocus: Boolean(profile.sendFocus),
+          abilityMix: String(profile.abilityMix ?? "mixed"),
+        });
       } finally {
         setProfileLoaded(true);
       }
@@ -481,6 +539,7 @@ export default function LessonPackPage() {
         const pack = JSON.parse(item.json);
         setResult(pack);
         setForm({ year_group: item.year_group ?? pack.year_group ?? "", subject: item.subject ?? pack.subject ?? "", topic: item.topic ?? pack.topic ?? "" });
+        isLibraryLoadRef.current = true;
         setSaveState("saved");
         setSaveMsg("Loaded from library");
         setReviewTouched(false);
@@ -549,6 +608,8 @@ export default function LessonPackPage() {
     setReviewTouched(false);
     setGuidedFeedback([]);
     setSectionReview({});
+    setReflectQuestions([]);
+    setReflectAcknowledged({});
     setEngineStatus({ providers: buildInitialProviderStates(providerCatalog), pass: null, ensembled: false });
     void trackTelemetry("lesson_pack_generated", { yearGroup: form.year_group, subject: form.subject, topic: form.topic });
 
@@ -618,6 +679,15 @@ export default function LessonPackPage() {
 
   async function handleExport(format: "lesson-pdf" | "slides-pptx" | "worksheet-doc", allowWithoutReview = false) {
     if (!result || !isPack(result)) return;
+    if (reflectLoading) {
+      setToast("Class reflection is still loading — please wait a moment.");
+      return;
+    }
+    const reflectDone = reflectQuestions.length === 0 || reflectQuestions.every((_, i) => reflectAcknowledged[i]);
+    if (!reflectDone) {
+      setToast("Review all class reflection prompts before exporting.");
+      return;
+    }
     if (!reviewTouched && !allowWithoutReview) {
       setExportWarning({ type: "export", format });
       return;
@@ -649,6 +719,15 @@ export default function LessonPackPage() {
 
   async function handleManualSave(allowWithoutReview = false) {
     if (!result || !isPack(result) || saveState === "saving" || saveState === "saved") return;
+    if (reflectLoading) {
+      setToast("Class reflection is still loading — please wait a moment.");
+      return;
+    }
+    const reflectDone = reflectQuestions.length === 0 || reflectQuestions.every((_, i) => reflectAcknowledged[i]);
+    if (!reflectDone) {
+      setToast("Review all class reflection prompts before saving.");
+      return;
+    }
     if (!reviewTouched && !allowWithoutReview) {
       setExportWarning({ type: "save" });
       return;
@@ -682,6 +761,8 @@ export default function LessonPackPage() {
     setSaveState("idle");
     setSaveMsg("");
     markReviewInteraction("lesson_pack_regenerated", { guidedFeedback, sectionReview });
+    setReflectQuestions([]);
+    setReflectAcknowledged({});
     setEngineStatus({ providers: buildInitialProviderStates(providerCatalog), pass: null, ensembled: false });
 
     try {
@@ -847,6 +928,7 @@ export default function LessonPackPage() {
     settingsChecklist.hugelyBelowStandardPercent &&
     settingsChecklist.attainmentBandsValid;
   const canGenerate = profileLoaded && classNotesReady && teacherSettingsReady;
+  const reflectionsComplete = reflectQuestions.length === 0 || reflectQuestions.every((_, i) => reflectAcknowledged[i]);
   const reviewSectionButton = (section: string, value: string) => (
     <button
       type="button"
@@ -1545,6 +1627,143 @@ export default function LessonPackPage() {
               </button>
             </div>
           </div>
+
+          {/* AI-generated notice */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap",
+            padding: "0.6rem 0.9rem", borderRadius: "10px", marginBottom: "0.5rem",
+            background: "rgb(var(--accent-rgb) / 0.06)", border: "1px solid rgb(var(--accent-rgb) / 0.2)",
+          }}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0, color: "var(--accent)" }}>
+              <path d="M8 0a.75.75 0 0 1 .712.513l1.33 3.986 3.987 1.33a.75.75 0 0 1 0 1.422l-3.986 1.33-1.33 3.987a.75.75 0 0 1-1.422 0L5.96 8.58 1.975 7.25a.75.75 0 0 1 0-1.422L5.96 4.498 7.29.512A.75.75 0 0 1 8 0z" />
+            </svg>
+            <span style={{ fontSize: "0.78rem", color: "var(--muted)", flex: 1 }}>
+              <strong style={{ color: "var(--accent)" }}>AI-Generated content</strong> — This lesson pack was produced by an AI model.
+              Always review and verify before using with pupils. You are responsible for its accuracy and suitability.
+            </span>
+          </div>
+
+          {/* Class context mirror */}
+          {pack && classProfile && (
+            <div style={{
+              display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem",
+              padding: "0.65rem 0.9rem", borderRadius: "10px", marginBottom: "0.5rem",
+              background: "var(--field-bg)", border: "1px solid var(--border)",
+            }}>
+              <span style={{ fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginRight: "0.25rem" }}>
+                Your class
+              </span>
+              {classProfile.ealPercent !== null && (
+                <span style={{ fontSize: "0.73rem", fontWeight: 600, padding: "0.2rem 0.6rem", borderRadius: "999px", background: "rgb(99 102 241 / 0.1)", border: "1px solid rgb(99 102 241 / 0.25)", color: "var(--accent)" }}>
+                  EAL {classProfile.ealPercent}%
+                </span>
+              )}
+              {classProfile.pupilPremiumPercent !== null && (
+                <span style={{ fontSize: "0.73rem", fontWeight: 600, padding: "0.2rem 0.6rem", borderRadius: "999px", background: "rgb(251 191 36 / 0.1)", border: "1px solid rgb(251 191 36 / 0.25)", color: "#f59e0b" }}>
+                  PP {classProfile.pupilPremiumPercent}%
+                </span>
+              )}
+              {classProfile.abilityMix && (
+                <span style={{ fontSize: "0.73rem", fontWeight: 600, padding: "0.2rem 0.6rem", borderRadius: "999px", background: "rgb(148 163 184 / 0.1)", border: "1px solid var(--border)", color: "var(--muted)" }}>
+                  {classProfile.abilityMix === "mixed" ? "Mixed ability" : classProfile.abilityMix === "predominantly_lower" ? "Predominantly lower" : "Predominantly higher"}
+                </span>
+              )}
+              {classProfile.sendFocus && (
+                <span style={{ fontSize: "0.73rem", fontWeight: 600, padding: "0.2rem 0.6rem", borderRadius: "999px", background: "rgb(16 185 129 / 0.1)", border: "1px solid rgb(16 185 129 / 0.25)", color: "#10b981" }}>
+                  SEND focus
+                </span>
+              )}
+              {classProfile.classNotes && (
+                <span style={{ fontSize: "0.73rem", color: "var(--muted)", fontStyle: "italic", marginLeft: "0.25rem" }}>
+                  "{classProfile.classNotes.slice(0, 70)}{classProfile.classNotes.length > 70 ? "…" : ""}"
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Class reflection prompts */}
+          {pack && (reflectLoading || reflectQuestions.length > 0) && (
+            <div className="card" style={{
+              border: reflectionsComplete
+                ? "1px solid rgb(74 222 128 / 0.35)"
+                : "1.5px solid rgb(var(--accent-rgb) / 0.45)",
+              marginBottom: "0.25rem",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.85rem" }}>
+                <SectionLabel color={reflectionsComplete ? "#4ade80" : "var(--accent)"}>
+                  {reflectionsComplete ? "Class reflection complete ✓" : "Review for your class"}
+                </SectionLabel>
+                {reflectQuestions.length > 0 && (
+                  <span style={{
+                    fontSize: "0.73rem", fontWeight: 600, padding: "0.2rem 0.65rem", borderRadius: "999px",
+                    background: reflectionsComplete ? "rgb(74 222 128 / 0.1)" : "rgb(var(--accent-rgb) / 0.1)",
+                    border: `1px solid ${reflectionsComplete ? "rgb(74 222 128 / 0.3)" : "rgb(var(--accent-rgb) / 0.3)"}`,
+                    color: reflectionsComplete ? "#4ade80" : "var(--accent)",
+                  }}>
+                    {Object.values(reflectAcknowledged).filter(Boolean).length} / {reflectQuestions.length} considered
+                  </span>
+                )}
+              </div>
+
+              {reflectLoading && (
+                <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", color: "var(--muted)", padding: "0.25rem 0" }}>
+                  <span style={{
+                    width: "14px", height: "14px", flexShrink: 0,
+                    border: "2px solid var(--accent)", borderTopColor: "transparent",
+                    borderRadius: "50%", display: "inline-block",
+                    animation: "spin 0.65s linear infinite",
+                  }} />
+                  <span style={{ fontSize: "0.85rem" }}>Generating class-specific reflection prompts…</span>
+                </div>
+              )}
+
+              {!reflectLoading && reflectQuestions.map((q, i) => {
+                const acked = Boolean(reflectAcknowledged[i]);
+                return (
+                  <div key={i} style={{
+                    display: "flex", gap: "0.85rem", alignItems: "flex-start",
+                    padding: "0.8rem 0.9rem", borderRadius: "10px", marginBottom: "0.6rem",
+                    background: acked ? "rgb(74 222 128 / 0.05)" : "var(--field-bg)",
+                    border: `1px solid ${acked ? "rgb(74 222 128 / 0.3)" : "var(--border)"}`,
+                    transition: "background 200ms ease, border-color 200ms ease",
+                  }}>
+                    <p style={{ flex: 1, margin: 0, fontSize: "0.88rem", lineHeight: 1.65, color: acked ? "var(--muted)" : "var(--text)" }}>
+                      {q}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReflectAcknowledged((prev) => ({ ...prev, [i]: !prev[i] }));
+                        if (!acked) markReviewInteraction("lesson_pack_reflection_acknowledged", { index: i });
+                      }}
+                      style={{
+                        flexShrink: 0,
+                        padding: "0.38rem 0.85rem",
+                        borderRadius: "8px",
+                        fontSize: "0.78rem",
+                        fontWeight: 600,
+                        fontFamily: "inherit",
+                        cursor: "pointer",
+                        transition: "all 160ms ease",
+                        border: acked ? "1px solid rgb(74 222 128 / 0.4)" : "1.5px solid rgb(var(--accent-rgb) / 0.5)",
+                        background: acked ? "rgb(74 222 128 / 0.1)" : "rgb(var(--accent-rgb) / 0.08)",
+                        color: acked ? "#4ade80" : "var(--accent)",
+                        whiteSpace: "nowrap" as const,
+                      }}
+                    >
+                      {acked ? "✓ Considered" : "Consider →"}
+                    </button>
+                  </div>
+                );
+              })}
+
+              {!reflectLoading && !reflectionsComplete && reflectQuestions.length > 0 && (
+                <p style={{ margin: "0.25rem 0 0", fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.5 }}>
+                  Confirm each prompt to unlock save and export. This ensures you&apos;ve considered your pupils&apos; specific needs before using this lesson.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Sections */}
           <div style={{ display: "grid", gap: "1rem" }}>

@@ -145,6 +145,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       : normaliseDueTime(existing.due_time);
   const importance = body?.importance !== undefined ? normaliseImportance(body.importance) : normaliseImportance(existing.importance);
   const completed = body?.completed !== undefined ? Boolean(body.completed) : Boolean(existing.completed);
+  const VALID_PRIORITIES = ["p1", "p2", "p3", "p4"];
+  const VALID_LABELS = ["planning", "marking", "admin", "personal", "send"];
+  const priority = body?.priority !== undefined
+    ? (body.priority === null ? null : VALID_PRIORITIES.includes(String(body.priority || "").toLowerCase()) ? String(body.priority).toLowerCase() : (existing.priority ?? null))
+    : (existing.priority ?? null);
+  const label = body?.label !== undefined
+    ? (body.label === null ? null : VALID_LABELS.includes(String(body.label || "").toLowerCase()) ? String(body.label).toLowerCase() : (existing.label ?? null))
+    : (existing.label ?? null);
+  const snoozedUntil = body?.snoozedUntil !== undefined
+    ? (body.snoozedUntil && /^\d{4}-\d{2}-\d{2}$/.test(String(body.snoozedUntil)) ? String(body.snoozedUntil) : null)
+    : (existing.snoozed_until ?? null);
 
   if (!title) {
     return NextResponse.json({ error: "Task title is required" }, { status: 400 });
@@ -163,6 +174,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         due_date: dueDate,
         due_time: dueTime,
         importance,
+        priority,
+        label,
+        snoozed_until: snoozedUntil,
         completed,
         updated_at: new Date().toISOString(),
       })
@@ -335,14 +349,14 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
 
     await supabase
       .from("lesson_schedule")
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq("id", existing.schedule_event_id)
       .eq("user_id", session.userId);
   }
 
   const { error } = await supabase
     .from("personal_tasks")
-    .delete()
+    .update({ deleted_at: new Date().toISOString() })
     .eq("id", id)
     .eq("user_id", session.userId);
 

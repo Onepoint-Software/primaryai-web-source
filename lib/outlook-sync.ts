@@ -1,5 +1,6 @@
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { formatSupabaseError, isMissingColumnError, isMissingRelationError } from "@/lib/supabase-errors";
+import { decryptToken, encryptToken } from "@/lib/token-crypto";
 import {
   buildOutlookEventPayload,
   buildOutlookNotes,
@@ -71,25 +72,33 @@ async function ensureValidAccessToken(userId: string) {
     Number.isNaN(expiresAt.getTime()) ||
     expiresAt.getTime() - Date.now() < 5 * 60 * 1000;
 
+  const decryptedAccessToken = await decryptToken(String(data.access_token || ""));
+
   if (!needsRefresh) {
-    return { supabase, connection: data, accessToken: String(data.access_token) };
+    return { supabase, connection: data, accessToken: decryptedAccessToken };
   }
 
   if (!data.refresh_token) {
     throw new Error("Outlook connection expired. Please reconnect your Outlook calendar.");
   }
 
-  const refreshed = await refreshMicrosoftAccessToken(String(data.refresh_token));
+  const decryptedRefreshToken = await decryptToken(String(data.refresh_token));
+  const refreshed = await refreshMicrosoftAccessToken(decryptedRefreshToken);
   const nextAccessToken = String(refreshed.access_token || "");
-  const nextRefreshToken = String(refreshed.refresh_token || data.refresh_token || "");
+  const nextRefreshToken = String(refreshed.refresh_token || decryptedRefreshToken || "");
   const expiresIn = Number(refreshed.expires_in || 3600);
   const nextExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+
+  const [encNextAccess, encNextRefresh] = await Promise.all([
+    encryptToken(nextAccessToken),
+    encryptToken(nextRefreshToken),
+  ]);
 
   const { data: updated, error: updateError } = await supabase
     .from("outlook_calendar_connections")
     .update({
-      access_token: nextAccessToken,
-      refresh_token: nextRefreshToken,
+      access_token: encNextAccess,
+      refresh_token: encNextRefresh,
       expires_at: nextExpiresAt,
       scope: typeof refreshed.scope === "string" ? refreshed.scope : data.scope,
       updated_at: new Date().toISOString(),
