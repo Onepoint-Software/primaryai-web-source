@@ -4,6 +4,8 @@ import { LessonPackRequestSchema, LessonPackSchema } from "@/src/engine/schema";
 import { getCurrentUserSession } from "@/lib/user-session";
 import { getOrCreateUserProfile, toEngineProfile } from "@/lib/user-profile";
 import { prisma } from "@/src/db/prisma";
+import { scanInput, logIntercept } from "@/lib/safeguarding";
+import { trackEvent } from "@/lib/planner-telemetry";
 
 const MIN_CLASS_NOTES_CHARS = 200;
 
@@ -88,6 +90,35 @@ export async function POST(req: Request) {
     );
   }
 
+  // ── Safeguarding scan ─────────────────────────────────────────────────────
+  // Scan all free-text teacher input before it reaches any model.
+  // If flagged: log the category (never the content) and return a redirect signal.
+  const inputsToScan = [
+    parsedRequest.data.topic ?? "",
+    parsedRequest.data.context_notes ?? "",
+    parsedRequest.data.feedback ?? "",
+  ].join(" ");
+
+  const safeguardingResult = scanInput(inputsToScan);
+  if (!safeguardingResult.safe && safeguardingResult.category) {
+    logIntercept(userId, safeguardingResult.category);
+    trackEvent(userId, "planner_safeguarding_intercept", {
+      matched_category: safeguardingResult.category,
+    });
+    return NextResponse.json(
+      { error: "SAFEGUARDING_REDIRECT", category: safeguardingResult.category },
+      { status: 422 }
+    );
+  }
+
+  // ── Telemetry: submitted ──────────────────────────────────────────────────
+  trackEvent(userId, "planner_submitted", {
+    year_group: parsedRequest.data.year_group,
+    subject: parsedRequest.data.subject,
+    topic: parsedRequest.data.topic,
+    objective_length: parsedRequest.data.topic?.length ?? 0,
+  });
+
   try {
     const generated = await generateLessonPackWithMeta(parsedRequest.data);
     const pack = generated.pack;
@@ -108,10 +139,16 @@ export async function POST(req: Request) {
       // Logging should not block generation.
     }
 
+    // ── Telemetry: plan ready ─────────────────────────────────────────────
+    trackEvent(userId, "plan_ready", {
+      total_duration_ms: latencyMs,
+    });
+
     const shouldAutoSave = Boolean(userId && (profile?.autoSave || forceSave));
+    let savedPlanId: string | undefined;
     if (shouldAutoSave) {
       try {
-        await prisma.lessonPack.create({
+        const saved = await prisma.lessonPack.create({
           data: {
             userId,
             title: `${pack.subject} - ${pack.topic}`,
@@ -121,6 +158,7 @@ export async function POST(req: Request) {
             json: JSON.stringify(pack),
           },
         });
+        savedPlanId = saved.id;
       } catch {
         // Auto-save should not block generation response.
       }
@@ -131,6 +169,7 @@ export async function POST(req: Request) {
       _meta: {
         ...(generated.meta ?? {}),
         autoSaved: shouldAutoSave,
+        planId: savedPlanId ?? null,
       },
     });
   } catch (err) {

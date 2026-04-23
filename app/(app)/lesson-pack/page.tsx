@@ -208,6 +208,171 @@ function LessonWalkthroughPanel({ sections }: { sections: LessonSection[] }) {
   );
 }
 
+type SectionStateValue = "accepted" | "revised" | "rejected";
+
+interface SectionCardProps {
+  sectionKey: string;
+  sectionOrder: number;
+  section: LessonSection;
+  planId?: string | null;
+  state: SectionStateValue;
+  editedContent: string;
+  onStateChange: (key: string, newState: SectionStateValue, content: string) => void;
+}
+
+function SectionCard({ sectionKey, sectionOrder, section, planId, state, editedContent, onStateChange }: SectionCardProps) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(editedContent || section.content);
+  const [saving, setSaving] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Colour scheme per state
+  const stateStyle = {
+    accepted: { border: "rgba(34,197,94,0.35)", badge: "#22c55e", bg: "rgba(34,197,94,0.04)" },
+    revised:  { border: "rgba(245,158,11,0.45)", badge: "#f59e0b", bg: "rgba(245,158,11,0.04)" },
+    rejected: { border: "rgba(239,68,68,0.35)",  badge: "#ef4444", bg: "rgba(239,68,68,0.04)" },
+  }[state];
+
+  const stateLabel = { accepted: "Accepted", revised: "Revised", rejected: "Rejected" }[state];
+
+  async function persist(newState: SectionStateValue, content: string) {
+    if (!planId) return; // no persistence without a saved plan
+    setSaving(true);
+    try {
+      const editDistance = content !== section.content
+        ? Math.abs(content.length - section.content.length)
+        : 0;
+      await fetch("/api/planner/sections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planId,
+          sectionKey,
+          sectionOrder,
+          contentMd: content,
+          rationaleMd: section.rationale_badge ?? "",
+          state: newState,
+          editDistance,
+        }),
+      });
+    } catch {
+      // Non-blocking — telemetry will have fired; UI state is still updated
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function accept() {
+    const content = draft;
+    onStateChange(sectionKey, "accepted", content);
+    persist("accepted", content);
+    setEditing(false);
+  }
+
+  function reject() {
+    onStateChange(sectionKey, "rejected", draft);
+    persist("rejected", draft);
+    setEditing(false);
+  }
+
+  function startEdit() {
+    setDraft(editedContent || section.content);
+    setEditing(true);
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  }
+
+  function saveRevision() {
+    onStateChange(sectionKey, "revised", draft);
+    persist("revised", draft);
+    setEditing(false);
+  }
+
+  const displayContent = state === "revised" ? editedContent : section.content;
+
+  return (
+    <div style={{ border: `1.5px solid ${stateStyle.border}`, borderRadius: "14px", background: stateStyle.bg, overflow: "hidden", marginBottom: "0.75rem" }}>
+      {/* Header */}
+      <div style={{ padding: "0.75rem 1rem", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${stateStyle.border}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+          <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#818cf8" }}>{sectionOrder + 1}. {section.title}</span>
+          {section.rationale_badge && (
+            <span style={{ fontSize: "0.62rem", padding: "2px 7px", borderRadius: "999px", background: "rgba(99,102,241,0.1)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.2)", fontWeight: 600 }}>{section.rationale_badge}</span>
+          )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          {saving && <span style={{ fontSize: "0.65rem", color: "var(--muted)" }}>saving…</span>}
+          <span style={{ fontSize: "0.65rem", fontWeight: 700, padding: "2px 8px", borderRadius: "999px", background: `color-mix(in srgb, ${stateStyle.badge} 12%, transparent)`, color: stateStyle.badge, border: `1px solid color-mix(in srgb, ${stateStyle.badge} 25%, transparent)` }}>{stateLabel}</span>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{ padding: "0.85rem 1rem" }}>
+        {editing ? (
+          <textarea
+            ref={textareaRef}
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            rows={6}
+            style={{ width: "100%", resize: "vertical", padding: "0.65rem 0.8rem", borderRadius: "8px", border: "1.5px solid #f59e0b", background: "var(--surface)", color: "var(--text)", fontSize: "0.87rem", lineHeight: 1.65, fontFamily: "inherit", boxSizing: "border-box" }}
+          />
+        ) : (
+          <p style={{ margin: 0, fontSize: "0.87rem", lineHeight: 1.7, color: state === "rejected" ? "var(--muted)" : "var(--text)", textDecoration: state === "rejected" ? "line-through" : "none", opacity: state === "rejected" ? 0.6 : 1 }}>{displayContent}</p>
+        )}
+
+        {/* Teacher prompts */}
+        {!editing && section.teacher_prompts && section.teacher_prompts.length > 0 && (
+          <div style={{ marginTop: "0.75rem" }}>
+            <p style={{ margin: "0 0 0.35rem", fontSize: "0.63rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: "#818cf8" }}>Teacher Prompts</p>
+            <div style={{ display: "flex", flexDirection: "column" as const, gap: "0.25rem" }}>
+              {section.teacher_prompts.map((p, i) => (
+                <div key={i} style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start" }}>
+                  <span style={{ flexShrink: 0, color: "#818cf8", fontSize: "0.85rem", lineHeight: 1.5 }}>›</span>
+                  <p style={{ margin: 0, fontSize: "0.83rem", lineHeight: 1.55, color: "var(--text)" }}>{p}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Checks for understanding */}
+        {!editing && section.checks_for_understanding && section.checks_for_understanding.length > 0 && (
+          <div style={{ marginTop: "0.65rem" }}>
+            <p style={{ margin: "0 0 0.35rem", fontSize: "0.63rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: "#818cf8" }}>Checks for Understanding</p>
+            <div style={{ display: "flex", flexDirection: "column" as const, gap: "0.25rem" }}>
+              {section.checks_for_understanding.map((c, i) => (
+                <div key={i} style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start", padding: "0.4rem 0.65rem", borderRadius: "7px", background: "rgba(99,102,241,0.07)", border: "1px solid rgba(99,102,241,0.14)" }}>
+                  <span style={{ flexShrink: 0, color: "#818cf8", fontWeight: 700, fontSize: "0.78rem", lineHeight: 1.5 }}>?</span>
+                  <p style={{ margin: 0, fontSize: "0.82rem", lineHeight: 1.5, color: "var(--text)" }}>{c}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Controls */}
+      <div style={{ padding: "0.6rem 1rem", borderTop: `1px solid ${stateStyle.border}`, display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" as const }}>
+        {editing ? (
+          <>
+            <button type="button" onClick={saveRevision} style={{ padding: "0.35rem 0.85rem", borderRadius: "7px", border: "1.5px solid #f59e0b", background: "rgba(245,158,11,0.1)", color: "#f59e0b", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Save revision</button>
+            <button type="button" onClick={() => setEditing(false)} style={{ padding: "0.35rem 0.85rem", borderRadius: "7px", border: "1px solid var(--border)", background: "transparent", color: "var(--muted)", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+          </>
+        ) : (
+          <>
+            {state !== "accepted" && (
+              <button type="button" onClick={accept} style={{ padding: "0.32rem 0.8rem", borderRadius: "7px", border: "1.5px solid rgba(34,197,94,0.4)", background: "rgba(34,197,94,0.08)", color: "#22c55e", fontSize: "0.73rem", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>✓ Accept</button>
+            )}
+            <button type="button" onClick={startEdit} style={{ padding: "0.32rem 0.8rem", borderRadius: "7px", border: "1.5px solid rgba(245,158,11,0.4)", background: "rgba(245,158,11,0.08)", color: "#f59e0b", fontSize: "0.73rem", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>✎ Revise</button>
+            {state !== "rejected" && (
+              <button type="button" onClick={reject} style={{ padding: "0.32rem 0.8rem", borderRadius: "7px", border: "1.5px solid rgba(239,68,68,0.4)", background: "rgba(239,68,68,0.08)", color: "#ef4444", fontSize: "0.73rem", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>✕ Reject</button>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const PROVIDER_LABELS: Record<string, string> = {
   cerebras: "Cerebras",
   groq: "Groq",
@@ -271,6 +436,7 @@ type LessonPack = {
   slides: Array<{ title: string; bullets: string[]; speaker_notes?: string }>;
   _meta?: {
     autoSaved?: boolean;
+    planId?: string | null;
     usedCurriculumObjectives: string[];
     usedContextNotes: boolean;
     usedTeacherProfile: boolean;
@@ -551,6 +717,8 @@ export default function LessonPackPage() {
   const [exportWarning, setExportWarning] = useState<null | { type: "export"; format: "lesson-pdf" | "slides-pptx" | "worksheet-doc" } | { type: "save" }>(null);
   const [uploadLessonOpen, setUploadLessonOpen] = useState(false);
   const [uploadLessonSaving, setUploadLessonSaving] = useState(false);
+  // Section accept / revise / reject state
+  const [sectionStates, setSectionStates] = useState<Record<string, { state: SectionStateValue; content: string }>>({});
   const [uploadLessonError, setUploadLessonError] = useState("");
   const [uploadLessonFile, setUploadLessonFile] = useState<File | null>(null);
   const [uploadLessonDraft, setUploadLessonDraft] = useState({
@@ -606,6 +774,24 @@ export default function LessonPackPage() {
     const timeout = window.setTimeout(() => setToast(null), 3200);
     return () => window.clearTimeout(timeout);
   }, [toast]);
+
+  // Fire planner_form_opened on mount
+  useEffect(() => {
+    fetch("/api/planner/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventType: "planner_form_opened", payload: {} }),
+    }).catch(() => {});
+  }, []);
+
+  // Reset section states when a new plan is generated
+  useEffect(() => {
+    setSectionStates({});
+  }, [result]);
+
+  function handleSectionStateChange(key: string, newState: SectionStateValue, content: string) {
+    setSectionStates(prev => ({ ...prev, [key]: { state: newState, content } }));
+  }
 
   async function trackTelemetry(event: string, payload: Record<string, unknown> = {}) {
     try {
@@ -870,7 +1056,12 @@ export default function LessonPackPage() {
 
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({ error: "Generation failed" }));
-        setResult(data);
+        // Safeguarding intercept — show a specific message, never the matched content
+        if (res.status === 422 && data?.error === "SAFEGUARDING_REDIRECT") {
+          setResult({ error: "Your input has been flagged for safeguarding review. Please contact your school's Designated Safeguarding Lead (DSL) before continuing." });
+        } else {
+          setResult(data);
+        }
         return;
       }
 
@@ -959,6 +1150,16 @@ export default function LessonPackPage() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     void trackTelemetry(allowWithoutReview ? "lesson_pack_exported_without_review" : "lesson_pack_exported_after_review", { format });
+    // Planner telemetry: plan_exported
+    fetch("/api/planner/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventType: "plan_exported",
+        payload: { format },
+        planId: isPack(result) ? result._meta?.planId : undefined,
+      }),
+    }).catch(() => {});
   }
 
   async function handleManualSave(allowWithoutReview = false) {
@@ -2155,9 +2356,33 @@ export default function LessonPackPage() {
               </div>
             )}
 
-            {/* Lesson Walkthrough (lesson_sections) */}
+            {/* Lesson Walkthrough — editable sections with accept / revise / reject */}
             {pack.lesson_sections && pack.lesson_sections.length > 0 && (
-              <LessonWalkthroughPanel sections={pack.lesson_sections} />
+              <div className="card" style={{ padding: "1rem 1.1rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "1rem" }}>
+                  <SectionLabel color="#818cf8">Lesson Walkthrough</SectionLabel>
+                  <span style={{ fontSize: "0.65rem", padding: "2px 7px", borderRadius: "999px", background: "rgba(99,102,241,0.1)", color: "#818cf8", fontWeight: 700, border: "1px solid rgba(99,102,241,0.2)" }}>{pack.lesson_sections.length} sections</span>
+                  {!pack._meta?.planId && (
+                    <span style={{ fontSize: "0.63rem", color: "var(--muted)", marginLeft: "auto" }}>Save the plan to persist section states</span>
+                  )}
+                </div>
+                {pack.lesson_sections.map((section, i) => {
+                  const key = `section_${i}_${section.title.toLowerCase().replace(/\s+/g, "_")}`;
+                  const sectionState = sectionStates[key];
+                  return (
+                    <SectionCard
+                      key={key}
+                      sectionKey={key}
+                      sectionOrder={i}
+                      section={section}
+                      planId={pack._meta?.planId}
+                      state={sectionState?.state ?? "accepted"}
+                      editedContent={sectionState?.content ?? section.content}
+                      onStateChange={handleSectionStateChange}
+                    />
+                  );
+                })}
+              </div>
             )}
 
             {/* Teacher + Pupil explanations */}
