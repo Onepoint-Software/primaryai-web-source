@@ -3,6 +3,8 @@
 import { type ChangeEvent, type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { scanForHallucinations, type HallucinationFlag, CATEGORY_META } from "@/lib/hallucination-detector";
+import { getSessionCpdPrompt, type CpdPrompt } from "@/lib/cpd-prompts";
 
 type DiffGroup = { group_size_hint: string; activity: string; questions: string[]; talk_prompt: string; exit_ticket: string; extension?: string };
 type DiffPack = { lower: DiffGroup; core: DiffGroup; higher: DiffGroup };
@@ -778,6 +780,16 @@ export default function LessonPackPage() {
   const [uploadLessonSaving, setUploadLessonSaving] = useState(false);
   // Section accept / revise / reject state
   const [sectionStates, setSectionStates] = useState<Record<string, { state: SectionStateValue; content: string }>>({});
+  // Hallucination flags (populated after generation)
+  const [hallucinationFlags, setHallucinationFlags] = useState<HallucinationFlag[]>([]);
+  const [hallucinationOpen, setHallucinationOpen] = useState(true);
+  // CPD micro-prompt for this session
+  const [cpdPrompt, setCpdPrompt] = useState<CpdPrompt | null>(null);
+  const [cpdExpanded, setCpdExpanded] = useState(false);
+  const [cpdDismissed, setCpdDismissed] = useState(false);
+  // Prompt critique
+  const [critiqueLoading, setCritiqueLoading] = useState(false);
+  const [critiqueResult, setCritiqueResult] = useState<{ critique: string; upgraded: string; suggestions: string[] } | null>(null);
   const [uploadLessonError, setUploadLessonError] = useState("");
   const [uploadLessonFile, setUploadLessonFile] = useState<File | null>(null);
   const [uploadLessonDraft, setUploadLessonDraft] = useState({
@@ -834,22 +846,61 @@ export default function LessonPackPage() {
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
-  // Fire planner_form_opened on mount
+  // Fire planner_form_opened on mount + initialise CPD prompt for this session
   useEffect(() => {
     fetch("/api/planner/event", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ eventType: "planner_form_opened", payload: {} }),
     }).catch(() => {});
+    setCpdPrompt(getSessionCpdPrompt());
   }, []);
 
-  // Reset section states when a new plan is generated
+  // Reset section states + scan for hallucinations when a new plan is generated
   useEffect(() => {
     setSectionStates({});
+    setCritiqueResult(null);
+    if (result && isPack(result)) {
+      const flags = scanForHallucinations(result as unknown as Record<string, unknown>);
+      setHallucinationFlags(flags);
+      setHallucinationOpen(flags.length > 0);
+      if (flags.length > 0) {
+        // Fire telemetry so we can track hallucination rate over time
+        fetch("/api/planner/event", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            eventType: "cpd_prompt_shown",
+            payload: { prompt_id: "hallucination_check", flag_count: flags.length },
+          }),
+        }).catch(() => {});
+      }
+    } else {
+      setHallucinationFlags([]);
+    }
   }, [result]);
 
   function handleSectionStateChange(key: string, newState: SectionStateValue, content: string) {
     setSectionStates(prev => ({ ...prev, [key]: { state: newState, content } }));
+  }
+
+  async function handleCritique() {
+    if (!form.topic.trim() || critiqueLoading) return;
+    setCritiqueLoading(true);
+    setCritiqueResult(null);
+    try {
+      const res = await fetch("/api/planner/critique", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ yearGroup: form.year_group, subject: form.subject, topic: form.topic }),
+      });
+      const data = await res.json();
+      if (res.ok) setCritiqueResult(data);
+    } catch {
+      // Non-blocking
+    } finally {
+      setCritiqueLoading(false);
+    }
   }
 
   async function trackTelemetry(event: string, payload: Record<string, unknown> = {}) {
@@ -1559,12 +1610,50 @@ export default function LessonPackPage() {
 
             <div className="field">
               <label>Topic</label>
-              <input
-                placeholder="e.g. Fractions, The Water Cycle…"
-                value={form.topic}
-                onChange={(e) => setForm({ ...form, topic: e.target.value })}
-                required
-              />
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start" }}>
+                <input
+                  placeholder="e.g. Fractions, The Water Cycle…"
+                  value={form.topic}
+                  onChange={(e) => { setForm({ ...form, topic: e.target.value }); setCritiqueResult(null); }}
+                  required
+                  style={{ flex: 1 }}
+                />
+                {form.topic.trim().length >= 5 && (
+                  <button
+                    type="button"
+                    onClick={handleCritique}
+                    disabled={critiqueLoading}
+                    title="Ask AI to critique and improve your topic wording"
+                    style={{ flexShrink: 0, padding: "0 0.85rem", height: "42px", borderRadius: "9px", border: "1.5px solid rgba(99,102,241,0.45)", background: "rgba(99,102,241,0.08)", color: "#818cf8", fontSize: "0.75rem", fontWeight: 700, cursor: critiqueLoading ? "default" : "pointer", fontFamily: "inherit", opacity: critiqueLoading ? 0.6 : 1, whiteSpace: "nowrap" }}
+                  >
+                    {critiqueLoading ? "Thinking…" : "✦ Improve"}
+                  </button>
+                )}
+              </div>
+              {/* Prompt critique result */}
+              {critiqueResult && (
+                <div style={{ marginTop: "0.65rem", padding: "0.85rem 1rem", borderRadius: "10px", border: "1.5px solid rgba(99,102,241,0.3)", background: "rgba(99,102,241,0.05)" }}>
+                  <p style={{ margin: "0 0 0.5rem", fontSize: "0.8rem", lineHeight: 1.55, color: "var(--text)" }}><strong style={{ color: "#818cf8" }}>AI assessment:</strong> {critiqueResult.critique}</p>
+                  {critiqueResult.upgraded && critiqueResult.upgraded !== form.topic && (
+                    <div style={{ margin: "0.5rem 0", padding: "0.55rem 0.8rem", borderRadius: "8px", background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.2)" }}>
+                      <p style={{ margin: "0 0 0.35rem", fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: "#818cf8" }}>Suggested wording</p>
+                      <p style={{ margin: "0 0 0.5rem", fontSize: "0.87rem", color: "var(--text)", lineHeight: 1.5 }}>{critiqueResult.upgraded}</p>
+                      <button
+                        type="button"
+                        onClick={() => { setForm(f => ({ ...f, topic: critiqueResult.upgraded })); setCritiqueResult(null); }}
+                        style={{ padding: "0.3rem 0.75rem", borderRadius: "6px", border: "none", background: "#818cf8", color: "#fff", fontSize: "0.73rem", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                      >Use this wording</button>
+                    </div>
+                  )}
+                  {critiqueResult.suggestions.length > 0 && (
+                    <ul style={{ margin: "0.4rem 0 0", padding: "0 0 0 1.1rem", display: "flex", flexDirection: "column" as const, gap: "0.2rem" }}>
+                      {critiqueResult.suggestions.map((s, i) => (
+                        <li key={i} style={{ fontSize: "0.8rem", color: "var(--muted)", lineHeight: 1.5 }}>{s}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="field" style={{ gridColumn: "1 / -1" }}>
@@ -2069,6 +2158,61 @@ export default function LessonPackPage() {
                 >
                   {exportWarning.type === "export" ? "Export draft" : "Save draft"}
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── CPD micro-prompt banner ──────────────────────────────── */}
+          {cpdPrompt && !cpdDismissed && (
+            <div style={{ marginBottom: "1rem", padding: "0.85rem 1rem", borderRadius: "12px", border: "1.5px solid rgba(99,102,241,0.3)", background: "rgba(99,102,241,0.06)", display: "flex", gap: "0.85rem", alignItems: "flex-start" }}>
+              <span style={{ fontSize: "1.1rem", lineHeight: 1, flexShrink: 0, marginTop: "2px" }}>🎓</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.3rem" }}>
+                  <span style={{ fontSize: "0.63rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "#818cf8" }}>CPD · {cpdPrompt.principle}</span>
+                </div>
+                <p style={{ margin: 0, fontSize: "0.85rem", lineHeight: 1.55, color: "var(--text)", fontWeight: 500 }}>{cpdPrompt.headline}</p>
+                {cpdExpanded && (
+                  <div style={{ marginTop: "0.65rem" }}>
+                    <p style={{ margin: "0 0 0.4rem", fontSize: "0.83rem", lineHeight: 1.6, color: "var(--text)" }}>{cpdPrompt.detail}</p>
+                    <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)", fontStyle: "italic" }}>Source: {cpdPrompt.source}</p>
+                    <p style={{ margin: "0.3rem 0 0", fontSize: "0.7rem", color: "#818cf8" }}>OECD AI Literacy: {cpdPrompt.oecd}</p>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => { setCpdExpanded(e => !e); if (!cpdExpanded) { fetch("/api/planner/event", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ eventType: "cpd_prompt_engaged", payload: { prompt_id: cpdPrompt.id, action: "expand" } }) }).catch(() => {}); } }}
+                  style={{ marginTop: "0.4rem", background: "none", border: "none", color: "#818cf8", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+                >{cpdExpanded ? "Show less" : "Read more →"}</button>
+              </div>
+              <button type="button" onClick={() => setCpdDismissed(true)} style={{ flexShrink: 0, background: "none", border: "none", color: "var(--muted)", fontSize: "1rem", cursor: "pointer", lineHeight: 1, padding: "0 0.25rem" }} aria-label="Dismiss CPD prompt">✕</button>
+            </div>
+          )}
+
+          {/* ── Hallucination flags ───────────────────────────────────── */}
+          {hallucinationFlags.length > 0 && hallucinationOpen && (
+            <div style={{ marginBottom: "1rem", borderRadius: "12px", border: "1.5px solid rgba(245,158,11,0.45)", background: "rgba(245,158,11,0.05)", overflow: "hidden" }}>
+              <div style={{ padding: "0.75rem 1rem", display: "flex", alignItems: "center", gap: "0.65rem", borderBottom: "1px solid rgba(245,158,11,0.2)" }}>
+                <span style={{ fontSize: "1rem" }}>⚠️</span>
+                <span style={{ flex: 1, fontSize: "0.8rem", fontWeight: 700, color: "#f59e0b" }}>Verify before using — {hallucinationFlags.length} item{hallucinationFlags.length !== 1 ? "s" : ""} flagged for review</span>
+                <button type="button" onClick={() => setHallucinationOpen(false)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "0.9rem", padding: "0 0.2rem" }} aria-label="Dismiss">✕</button>
+              </div>
+              <div style={{ padding: "0.75rem 1rem", display: "flex", flexDirection: "column" as const, gap: "0.65rem" }}>
+                {hallucinationFlags.map((flag, i) => {
+                  const meta = CATEGORY_META[flag.category];
+                  return (
+                    <div key={i} style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
+                      <span style={{ flexShrink: 0, width: "22px", height: "22px", borderRadius: "6px", background: `color-mix(in srgb, ${meta.color} 15%, transparent)`, color: meta.color, fontSize: "0.7rem", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{meta.icon}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.2rem" }}>
+                          <span style={{ fontSize: "0.63rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: meta.color }}>{meta.label}</span>
+                          <span style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text)", background: `color-mix(in srgb, ${meta.color} 10%, transparent)`, padding: "1px 6px", borderRadius: "4px" }}>&ldquo;{flag.excerpt}&rdquo;</span>
+                        </div>
+                        <p style={{ margin: "0 0 0.2rem", fontSize: "0.8rem", color: "var(--muted)", lineHeight: 1.45, fontStyle: "italic" }}>{flag.context}</p>
+                        <p style={{ margin: 0, fontSize: "0.77rem", color: "var(--text)", lineHeight: 1.4 }}>{flag.advice}</p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

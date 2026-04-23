@@ -1191,6 +1191,18 @@ export async function generateLessonPack(req: LessonPackRequest): Promise<Lesson
 }
 
 /**
+ * Send a raw prompt to the fastest available provider and return the text response.
+ * Used for lightweight single-shot calls (critique, micro-prompts, etc.)
+ * that do not need the full ensemble.
+ *
+ * Returns null if no provider responds successfully.
+ */
+export async function callSingleProvider(prompt: string): Promise<string | null> {
+  const attempt = await runSingleFastProvider(prompt);
+  return attempt?.ok ? (attempt.raw ?? null) : null;
+}
+
+/**
  * Regenerate a single named section of an existing lesson pack.
  * The teacher can optionally provide a short instruction ("make this more visual").
  * All other sections are returned unchanged.
