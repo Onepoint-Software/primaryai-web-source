@@ -58,6 +58,29 @@ const NAV = [
     ),
   },
   {
+    href: "/marking",
+    label: "Marking",
+    bg: "linear-gradient(145deg, #f59e0b 0%, #b45309 100%)",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+        <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+        <polyline points="7 13 9 15 13 11" />
+      </svg>
+    ),
+  },
+  {
+    href: "/retrieval",
+    label: "Retrieval",
+    bg: "linear-gradient(145deg, #ec4899 0%, #be185d 100%)",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="1 4 1 10 7 10" />
+        <path d="M3.51 15a9 9 0 1 0 .49-3.5" />
+      </svg>
+    ),
+  },
+  {
     href: "/compliance",
     label: "Compliance",
     bg: "linear-gradient(145deg, #10b981 0%, #059669 100%)",
