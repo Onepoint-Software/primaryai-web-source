@@ -1647,6 +1647,168 @@ function PersonalTasksCard({
   );
 }
 
+// ── Quick-launch section ─────────────────────────────────────────────────────
+
+function QuickLaunchSection({ firstName }: { firstName: string }) {
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+
+  const TOOLS: Array<{
+    href: string;
+    label: string;
+    bg: string;
+    accent: string;
+    icon: React.ReactNode;
+  }> = [
+    {
+      href: "/lesson-pack",
+      label: "New Lesson",
+      bg: "linear-gradient(145deg, #ffbc3a 0%, #e88200 100%)",
+      accent: "#e88200",
+      icon: (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+          <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+        </svg>
+      ),
+    },
+    {
+      href: "/marking",
+      label: "Marking",
+      bg: "linear-gradient(145deg, #f59e0b 0%, #b45309 100%)",
+      accent: "#b45309",
+      icon: (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+          <rect x="9" y="3" width="6" height="4" rx="1" />
+          <polyline points="9 12 11 14 15 10" />
+        </svg>
+      ),
+    },
+    {
+      href: "/retrieval",
+      label: "Retrieval",
+      bg: "linear-gradient(145deg, #ec4899 0%, #be185d 100%)",
+      accent: "#be185d",
+      icon: (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="1 4 1 10 7 10" />
+          <path d="M3.51 15a9 9 0 1 0 .49-3.5" />
+        </svg>
+      ),
+    },
+    {
+      href: "/library",
+      label: "Library",
+      bg: "linear-gradient(145deg, #4cc8dc 0%, #1897af 100%)",
+      accent: "#1897af",
+      icon: (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+        </svg>
+      ),
+    },
+    {
+      href: "/ai-planner",
+      label: "AI Planner",
+      bg: "linear-gradient(145deg, #cd7cf6 0%, #a338ec 100%)",
+      accent: "#a338ec",
+      icon: (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9.5 2 11 6.5 15.5 8 11 9.5 9.5 14 8 9.5 3.5 8 8 6.5 9.5 2z" />
+          <path d="M19.5 11 20.5 13.5 23 14.5 20.5 15.5 19.5 18 18.5 15.5 16 14.5 18.5 13.5 19.5 11z" />
+        </svg>
+      ),
+    },
+    {
+      href: "/compliance",
+      label: "Compliance",
+      bg: "linear-gradient(145deg, #10b981 0%, #059669 100%)",
+      accent: "#059669",
+      icon: (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          <polyline points="9 12 11 14 15 10" />
+        </svg>
+      ),
+    },
+  ];
+
+  return (
+    <div style={{
+      padding: "1.25rem 1.35rem",
+      borderRadius: "18px",
+      border: "1px solid var(--border-card)",
+      background: "var(--surface)",
+      position: "relative",
+      overflow: "hidden",
+    }}>
+      {/* Multicolour top accent */}
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: "linear-gradient(90deg, #e88200 0%, #ec4899 40%, #a338ec 70%, #059669 100%)" }} />
+
+      {/* Greeting */}
+      <div style={{ marginBottom: "1.1rem" }}>
+        <p style={{ margin: "0 0 0.18rem", fontSize: "1.05rem", fontWeight: 800, color: "var(--text)", letterSpacing: "-0.015em", lineHeight: 1.25 }}>
+          {greeting}{firstName ? `, ${firstName}` : ""} 👋
+        </p>
+        <p style={{ margin: 0, fontSize: "0.76rem", color: "var(--muted)", fontWeight: 500 }}>{today}</p>
+      </div>
+
+      {/* 3 × 2 tool grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.4rem" }}>
+        {TOOLS.map(({ href, label, bg, accent, icon }) => (
+          <Link
+            key={href}
+            href={href}
+            style={{
+              textDecoration: "none",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "0.42rem",
+              padding: "0.72rem 0.4rem 0.65rem",
+              borderRadius: "12px",
+              border: "1px solid var(--border)",
+              background: `color-mix(in srgb, ${accent} 5%, var(--surface))`,
+              transition: "border-color 140ms, background 140ms, transform 110ms",
+            }}
+            onMouseEnter={(e) => {
+              const el = e.currentTarget as HTMLElement;
+              el.style.borderColor = `color-mix(in srgb, ${accent} 50%, var(--border))`;
+              el.style.background = `color-mix(in srgb, ${accent} 10%, var(--surface))`;
+              el.style.transform = "translateY(-2px)";
+            }}
+            onMouseLeave={(e) => {
+              const el = e.currentTarget as HTMLElement;
+              el.style.borderColor = "var(--border)";
+              el.style.background = `color-mix(in srgb, ${accent} 5%, var(--surface))`;
+              el.style.transform = "";
+            }}
+          >
+            <div style={{
+              width: "36px",
+              height: "36px",
+              borderRadius: "10px",
+              background: bg,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#fff",
+              flexShrink: 0,
+              boxShadow: `0 3px 10px color-mix(in srgb, ${accent} 38%, transparent), 0 1px 3px rgb(0 0 0 / 0.14)`,
+            }}>
+              {icon}
+            </div>
+            <span style={{ fontSize: "0.67rem", fontWeight: 700, color: "var(--text)", textAlign: "center", lineHeight: 1.2, letterSpacing: "0.01em" }}>{label}</span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -2037,63 +2199,17 @@ export default function DashboardPage() {
         </div>
 
         <div className={`dashboard-hero-side-wrap${schedulerViewMode === "term" ? " is-below-term" : ""}`}>
-          <div className="dashboard-hero dashboard-hero-side">
-          </div>
+          <QuickLaunchSection firstName={accountName.split(/\s+/)[0]} />
           <WorkloadSuggestionsStrip />
           <AiSchedulePanel onScheduleChange={handleScheduleMutation} />
-          <div style={{ display: "flex", flexDirection: "column" as const, gap: "1rem" }}>
           <PersonalTasksCard
             tasks={tasks}
             onTasksChange={setTasks}
             onScheduleRefresh={handleTaskCrudRefresh}
           />
           <NotesWidget />
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-            <ActionCard
-              href="/library"
-              title="Lesson Library"
-              desc="Browse and manage your saved packs"
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                </svg>
-              }
-            />
 
-            <ActionCard
-              href="/settings"
-              title="Teacher Settings"
-              desc="Defaults, tone, school type and preferences"
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                </svg>
-              }
-            />
-          </div>
-            <LibraryOverview items={items} loading={loading} />
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", marginTop: "0.25rem" }}>
-            <ActionCard
-              href="/account"
-              title="Account"
-              desc="Manage your profile and sign-in details"
-              icon={accountIcon}
-            />
-
-            <ActionCard
-              href="/billing"
-              title="Billing"
-              desc="Manage your subscription and plan"
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line x1="1" y1="10" x2="23" y2="10" />
-                </svg>
-              }
-            />
-          </div>
-
-          {/* Recent packs */}
+          {/* Recent packs — high priority: teacher wants to continue recent work */}
           <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.7rem" }}>
               <p style={{ margin: 0, fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "var(--muted)" }}>
@@ -2125,34 +2241,63 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              {!loading && recent.map((item) => {
-                return (
-                  <Link key={item.id} href="/library" style={{ textDecoration: "none" }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = ""; }}
-                  >
-                    <div style={{
-                      display: "flex", alignItems: "center", gap: "0.85rem", padding: "0.85rem 1rem",
-                      borderRadius: "14px", border: "1px solid var(--border-card)", background: "var(--surface)",
-                      transition: "border-color 150ms ease, transform 120ms ease",
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: subjectColor(item.subject) }}>
-                        <ScheduleEventIcon subject={item.subject} size={18} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ margin: "0 0 0.2rem", fontSize: "0.87rem", fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.topic}</p>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" as const }}>
-                          <span style={{ fontSize: "0.68rem", fontWeight: 600, padding: "0.08rem 0.45rem", borderRadius: "999px", background: `color-mix(in srgb, ${subjectColor(item.subject)} 12%, transparent)`, color: subjectColor(item.subject) }}>{item.yearGroup}</span>
-                          <span style={{ fontSize: "0.72rem", color: "var(--muted)" }}>{item.subject}</span>
-                        </div>
-                      </div>
-                      <span style={{ fontSize: "0.72rem", color: "var(--muted)", flexShrink: 0, textAlign: "right" as const }}>{relativeTime(item.createdAt)}</span>
+              {!loading && recent.map((item) => (
+                <Link key={item.id} href="/library" style={{ textDecoration: "none" }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = ""; }}
+                >
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: "0.85rem", padding: "0.85rem 1rem",
+                    borderRadius: "14px", border: "1px solid var(--border-card)", background: "var(--surface)",
+                    transition: "border-color 150ms ease, transform 120ms ease",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: subjectColor(item.subject) }}>
+                      <ScheduleEventIcon subject={item.subject} size={18} />
                     </div>
-                  </Link>
-                );
-              })}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: "0 0 0.2rem", fontSize: "0.87rem", fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.topic}</p>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" as const }}>
+                        <span style={{ fontSize: "0.68rem", fontWeight: 600, padding: "0.08rem 0.45rem", borderRadius: "999px", background: `color-mix(in srgb, ${subjectColor(item.subject)} 12%, transparent)`, color: subjectColor(item.subject) }}>{item.yearGroup}</span>
+                        <span style={{ fontSize: "0.72rem", color: "var(--muted)" }}>{item.subject}</span>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: "0.72rem", color: "var(--muted)", flexShrink: 0, textAlign: "right" as const }}>{relativeTime(item.createdAt)}</span>
+                  </div>
+                </Link>
+              ))}
             </div>
           </div>
+
+          <LibraryOverview items={items} loading={loading} />
+
+          {/* Admin links */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+            <ActionCard
+              href="/settings"
+              title="Teacher Settings"
+              desc="Defaults, tone, school type and preferences"
+              icon={
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+              }
+            />
+            <ActionCard
+              href="/account"
+              title="Account"
+              desc="Manage your profile and sign-in details"
+              icon={accountIcon}
+            />
+            <ActionCard
+              href="/billing"
+              title="Billing"
+              desc="Manage your subscription and plan"
+              icon={
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line x1="1" y1="10" x2="23" y2="10" />
+                </svg>
+              }
+            />
           </div>
         </div>
       </div>
