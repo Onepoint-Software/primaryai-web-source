@@ -58,6 +58,17 @@ const NAV = [
     ),
   },
   {
+    href: "/compliance",
+    label: "Compliance",
+    bg: "linear-gradient(145deg, #10b981 0%, #059669 100%)",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        <polyline points="9 12 11 14 15 10" />
+      </svg>
+    ),
+  },
+  {
     href: "/settings",
     label: "Settings",
     bg: "linear-gradient(145deg, #a3a3a8 0%, #75757a 100%)",
