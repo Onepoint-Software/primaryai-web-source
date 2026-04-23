@@ -139,6 +139,21 @@ export default function MarkingPage() {
         </p>
       </div>
 
+      {/* How it works */}
+      <div style={{ marginBottom: "1.5rem", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.75rem" }}>
+        {[
+          { step: "1", title: "Paste pupil work", body: "Type or paste the pupil's work — no name needed. Add the task description and your marking criteria." },
+          { step: "2", title: "Get a pre-draft", body: "The assistant generates criterion-by-criterion comments, an overall note, and two next steps — all editable." },
+          { step: "3", title: "Review and confirm", body: "Edit every field until it reflects your professional judgement. Click Confirm before copying to your markbook." },
+        ].map(({ step, title, body }) => (
+          <div key={step} style={{ padding: "0.9rem 1rem", borderRadius: "10px", background: "var(--surface)", border: "1px solid var(--border)" }}>
+            <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "var(--accent)", color: "#fff", fontSize: "0.78rem", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "0.5rem" }}>{step}</div>
+            <p style={{ margin: "0 0 0.25rem", fontSize: "0.82rem", fontWeight: 700, color: "var(--text)" }}>{title}</p>
+            <p style={{ margin: 0, fontSize: "0.77rem", color: "var(--muted)", lineHeight: 1.5 }}>{body}</p>
+          </div>
+        ))}
+      </div>
+
       {/* Warning banner */}
       <div style={{ marginBottom: "1.5rem", padding: "0.85rem 1rem", borderRadius: "12px", background: "rgba(245,158,11,0.07)", border: "1.5px solid rgba(245,158,11,0.35)" }}>
         <p style={{ margin: 0, fontSize: "0.82rem", color: "#b45309", lineHeight: 1.5 }}>

@@ -150,6 +150,21 @@ export default function RetrievalPage() {
         </p>
       </div>
 
+      {/* How it works */}
+      <div style={{ marginBottom: "1.25rem", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.75rem" }}>
+        {[
+          { step: "1", title: "Name the prior topic", body: "Specify what pupils learned previously — the more specific you are, the sharper the questions." },
+          { step: "2", title: "Choose question types", body: "Mix multiple choice, short answer, true/false, and fill-in-the-blank to vary retrieval formats." },
+          { step: "3", title: "Use as a starter", body: "Copy and paste into your lesson, quiz tool, or whiteboard. Toggle answers on to reveal the mark scheme." },
+        ].map(({ step, title, body }) => (
+          <div key={step} style={{ padding: "0.9rem 1rem", borderRadius: "10px", background: "var(--surface)", border: "1px solid var(--border)" }}>
+            <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "var(--accent)", color: "#fff", fontSize: "0.78rem", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "0.5rem" }}>{step}</div>
+            <p style={{ margin: "0 0 0.25rem", fontSize: "0.82rem", fontWeight: 700, color: "var(--text)" }}>{title}</p>
+            <p style={{ margin: 0, fontSize: "0.77rem", color: "var(--muted)", lineHeight: 1.5 }}>{body}</p>
+          </div>
+        ))}
+      </div>
+
       {/* CPD note */}
       <div style={{ marginBottom: "1.5rem", padding: "0.85rem 1rem", borderRadius: "12px", background: "rgba(99,102,241,0.06)", border: "1.5px solid rgba(99,102,241,0.2)", display: "flex", gap: "0.75rem" }}>
         <span style={{ fontSize: "1rem", flexShrink: 0 }}>📚</span>
