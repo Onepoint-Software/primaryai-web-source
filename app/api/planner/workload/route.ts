@@ -15,18 +15,18 @@
 
 import { NextResponse } from "next/server";
 import { getCurrentUserSession } from "@/lib/user-session";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { getSupabaseAdminClient } from "@/lib/supabase";
 
 export async function GET() {
   const session = await getCurrentUserSession();
   const userId = session?.userId ?? null;
   if (!userId) {
     return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+  }
+
+  const supabase = getSupabaseAdminClient();
+  if (!supabase) {
+    return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
   }
 
   // Fetch all planner events for the user in one query (capped at 10 000 rows; enough for any individual teacher)
