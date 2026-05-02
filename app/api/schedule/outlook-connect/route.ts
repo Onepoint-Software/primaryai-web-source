@@ -1,5 +1,4 @@
 export const runtime = 'edge';
-import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { getCurrentUserSession } from "@/lib/user-session";
 import { buildOutlookAuthorizeUrl, isOutlookConfigured } from "@/lib/outlook-calendar";
@@ -21,7 +20,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/dashboard?outlook=not-configured", baseUrl));
   }
 
-  const state = crypto.randomBytes(16).toString("hex");
+  const state = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, "0")).join("");
   const response = NextResponse.redirect(
     buildOutlookAuthorizeUrl({
       baseUrl,
