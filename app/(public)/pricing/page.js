@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import Link from "next/link";
 import Nav from "@/components/marketing/Nav";
 

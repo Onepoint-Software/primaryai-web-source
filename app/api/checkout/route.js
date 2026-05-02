@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { NextResponse } from "next/server";
 import { createCheckoutSession } from "@/lib/stripe";
 import { getAuthSession } from "@/lib/auth";

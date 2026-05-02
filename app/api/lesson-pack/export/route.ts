@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { NextResponse } from "next/server";
 import { LessonPackSchema } from "@/src/engine/schema";
 import { lessonPackToSlides, lessonPackToWorksheet } from "@/src/engine/exporters";

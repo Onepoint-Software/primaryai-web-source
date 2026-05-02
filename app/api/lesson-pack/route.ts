@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { NextResponse } from "next/server";
 import { generateLessonPackWithMeta } from "@/src/engine/orchestrate";
 import { LessonPackRequestSchema, LessonPackSchema } from "@/src/engine/schema";

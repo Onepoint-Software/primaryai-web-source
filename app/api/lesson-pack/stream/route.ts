@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { generateLessonPackWithMeta } from "@/src/engine/orchestrate";
 import { LessonPackRequestSchema } from "@/src/engine/schema";
 import type { EngineEvent } from "@/src/engine/types";

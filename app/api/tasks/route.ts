@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { NextResponse } from "next/server";
 import { getGoogleSyncStatus, syncScheduleEventToGoogle } from "@/lib/google-sync";
 import { getOutlookSyncStatus, syncScheduleEventToOutlook } from "@/lib/outlook-sync";

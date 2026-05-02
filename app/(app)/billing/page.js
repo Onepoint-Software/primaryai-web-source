@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 export default function BillingPage() {
   return (
     <main className="page-wrap">

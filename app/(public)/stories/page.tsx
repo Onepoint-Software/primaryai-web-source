@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { Metadata } from "next";
 import { Caveat } from "next/font/google";
 import { getSupabaseAdminClient } from "@/lib/supabase";

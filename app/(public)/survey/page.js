@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import SurveyShell from "./SurveyShell";
 
 export const metadata = {

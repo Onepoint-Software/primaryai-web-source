@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { NextResponse } from "next/server";
 import { getCurrentUserSession } from "@/lib/user-session";
 import { trackEvent, type PlannerEventType, type PlannerEventPayload } from "@/lib/planner-telemetry";

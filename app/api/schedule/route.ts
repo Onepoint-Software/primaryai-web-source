@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { getGoogleSyncStatus, syncScheduleEventToGoogle } from "@/lib/google-sync";
 import { NextResponse } from "next/server";
 import { getCurrentUserSession } from "@/lib/user-session";

@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import Nav from "@/components/marketing/Nav";
 
 export default function FaqPage() {

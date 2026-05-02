@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { NextResponse } from "next/server";
 import { getSupabaseAdminClient } from "@/lib/supabase";
 import { getSchoolContext, requireSchool, requireSchoolAdmin } from "@/lib/school-planning";

@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { NextResponse } from "next/server";
 import { disconnectGoogleCalendar } from "@/lib/google-sync";
 import { getCurrentUserSession } from "@/lib/user-session";

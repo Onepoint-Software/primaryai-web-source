@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { NextResponse } from "next/server";
 import { getSupabaseConfig } from "@/lib/supabase";
 import { getProfileSetup } from "@/lib/profile-setup";
