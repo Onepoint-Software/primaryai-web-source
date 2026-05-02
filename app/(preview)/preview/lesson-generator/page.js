@@ -1,4 +1,5 @@
 "use client";
+export const runtime = 'edge';
 
 /*
  * Fixed viewport: 1440 × 900

@@ -21,7 +21,7 @@ for (const file of files) {
   if (isClient) {
     // Must go AFTER the 'use client' directive — it must be the first line
     newContent = content
-      .replace(/^('use client'|"use client")(\r?\n)/, `$1$2export const runtime = 'edge';\n`);
+      .replace(/^(['"]use client['"];?)(\r?\n)/, `$1$2export const runtime = 'edge';\n`);
   } else if (content.startsWith("'use server'") || content.startsWith('"use server"')) {
     newContent = content.replace(/^(["'](use server)["'])/, `$1\nexport const runtime = 'edge';`);
   } else {

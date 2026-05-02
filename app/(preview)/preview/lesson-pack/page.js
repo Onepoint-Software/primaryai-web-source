@@ -1,4 +1,5 @@
 "use client";
+export const runtime = 'edge';
 
 const PACK = {
   yearGroup: "Year 4",

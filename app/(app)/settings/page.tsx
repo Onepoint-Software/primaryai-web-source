@@ -1,4 +1,5 @@
 "use client";
+export const runtime = 'edge';
 
 import { type ChangeEvent, type ReactNode, useEffect, useId, useState } from "react";
 import { compressDataUrl, fileToOptimisedDataUrl } from "@/lib/client/avatar-upload";

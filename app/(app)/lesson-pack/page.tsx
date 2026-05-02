@@ -1,4 +1,5 @@
 "use client";
+export const runtime = 'edge';
 
 import { type ChangeEvent, type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import Link from "next/link";
