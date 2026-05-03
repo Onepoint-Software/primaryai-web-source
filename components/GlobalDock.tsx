@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import React, { type FormEvent, useEffect, useRef, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
+import React, { useEffect, useRef, useState } from "react";
+import { useAuth, useClerk } from "@clerk/nextjs";
 import { VscLibrary } from "react-icons/vsc";
 import { RiMoneyPoundCircleLine } from "react-icons/ri";
 import { FaPenClip } from "react-icons/fa6";
@@ -89,6 +89,7 @@ const NAV = [
 
 export default function GlobalDock() {
   const { isSignedIn } = useAuth();
+  const { signOut } = useClerk();
   const path = usePathname() ?? "";
   const [avatarUrl, setAvatarUrl] = useState<string>("");
   const [initials, setInitials] = useState<string>("");
@@ -195,22 +196,12 @@ export default function GlobalDock() {
     window.addEventListener("pointerup", onUp, { once: true });
   }
 
-  async function handleLogout(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleLogout() {
     setSigningOut(true);
     try {
-      const response = await fetch("/api/auth/logout", {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "X-Requested-With": "XMLHttpRequest",
-        },
-      });
-      const payload = await response.json().catch(() => ({}));
-      window.location.assign(payload?.redirectTo || "/");
+      await signOut({ redirectUrl: "/" });
     } catch {
       setSigningOut(false);
-      window.location.assign("/");
     }
   }
 
@@ -290,23 +281,22 @@ export default function GlobalDock() {
           </Link>
         ) : null}
 
-        <form action="/api/auth/logout" method="post" onSubmit={handleLogout} style={{ display: "contents" }}>
-          <button
-            type="submit"
-            className="app-sidebar-link app-sidebar-link--no-tile"
-            style={{ background: "transparent", color: "#FF3B30" }}
-            aria-label="Sign out"
-            title="Sign out"
-            disabled={signingOut}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-            <span className="app-sidebar-tooltip">{signingOut ? "Signing out..." : "Sign out"}</span>
-          </button>
-        </form>
+        <button
+          type="button"
+          className="app-sidebar-link app-sidebar-link--no-tile"
+          style={{ background: "transparent", color: "#FF3B30" }}
+          aria-label="Sign out"
+          title="Sign out"
+          disabled={signingOut}
+          onClick={handleLogout}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+          <span className="app-sidebar-tooltip">{signingOut ? "Signing out..." : "Sign out"}</span>
+        </button>
 
       </div>
     </>
