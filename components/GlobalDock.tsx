@@ -199,7 +199,7 @@ export default function GlobalDock() {
   async function handleLogout() {
     setSigningOut(true);
     try {
-      await signOut({ redirectUrl: "/" });
+      await signOut();
     } catch {
       setSigningOut(false);
     }

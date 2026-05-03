@@ -36,7 +36,7 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider afterSignOutUrl="/" signInUrl="/login" signUpUrl="/signup">
       <html lang="en" suppressHydrationWarning className={`${inter.variable} ${mono.variable}`}>
         <head>
           {/* Set theme before first paint to prevent flash */}

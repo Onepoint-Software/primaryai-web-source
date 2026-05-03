@@ -84,7 +84,7 @@ export default function NavLinks({ session = null }) {
     setSigningOut(true);
     clearUserScopedBrowserState();
     try {
-      await signOut({ redirectUrl: "/" });
+      await signOut();
     } catch {
       setSigningOut(false);
     }
