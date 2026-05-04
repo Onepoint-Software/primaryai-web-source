@@ -80,14 +80,10 @@ export default function NavLinks({ session = null }) {
 
   const close = () => setIsOpen(false);
 
-  async function handleLogout() {
+  function handleLogout() {
     setSigningOut(true);
     clearUserScopedBrowserState();
-    try {
-      await signOut();
-    } catch {
-      setSigningOut(false);
-    }
+    signOut(() => { window.location.replace("/"); }).catch(() => { window.location.replace("/"); });
   }
 
   const allLinks = PERSISTENT_LINKS.map((link) => ({

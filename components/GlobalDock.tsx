@@ -196,13 +196,9 @@ export default function GlobalDock() {
     window.addEventListener("pointerup", onUp, { once: true });
   }
 
-  async function handleLogout() {
+  function handleLogout() {
     setSigningOut(true);
-    try {
-      await signOut();
-    } catch {
-      setSigningOut(false);
-    }
+    signOut(() => { window.location.replace("/"); }).catch(() => { window.location.replace("/"); });
   }
 
   if (hidden) return null;

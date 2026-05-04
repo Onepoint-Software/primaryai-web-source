@@ -182,13 +182,9 @@ export default function AppSidebar() {
     };
   }, []);
 
-  async function handleLogout() {
+  function handleLogout() {
     setSigningOut(true);
-    try {
-      await signOut();
-    } catch {
-      setSigningOut(false);
-    }
+    signOut(() => { window.location.replace("/"); }).catch(() => { window.location.replace("/"); });
   }
 
   const dockStyle: React.CSSProperties = {
