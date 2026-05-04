@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useEffect, useRef, useState } from "react";
-import { useAuth, useClerk } from "@clerk/nextjs";
+import { useAuth } from "@clerk/nextjs";
 import { VscLibrary } from "react-icons/vsc";
 import { RiMoneyPoundCircleLine } from "react-icons/ri";
 import { FaPenClip } from "react-icons/fa6";
@@ -89,7 +89,6 @@ const NAV = [
 
 export default function GlobalDock() {
   const { isSignedIn } = useAuth();
-  const { signOut } = useClerk();
   const path = usePathname() ?? "";
   const [avatarUrl, setAvatarUrl] = useState<string>("");
   const [initials, setInitials] = useState<string>("");
@@ -198,7 +197,7 @@ export default function GlobalDock() {
 
   function handleLogout() {
     setSigningOut(true);
-    signOut(() => { window.location.replace("/"); }).catch(() => { window.location.replace("/"); });
+    window.location.replace("/api/auth/logout");
   }
 
   if (hidden) return null;

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import ThemeToggle from "./ThemeToggle";
-import { useAuth, useClerk, useUser } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 
 const PERSISTENT_LINKS = [
   { href: "/", label: "Home" },
@@ -83,7 +83,7 @@ export default function NavLinks({ session = null }) {
   function handleLogout() {
     setSigningOut(true);
     clearUserScopedBrowserState();
-    signOut(() => { window.location.replace("/"); }).catch(() => { window.location.replace("/"); });
+    window.location.replace("/api/auth/logout");
   }
 
   const allLinks = PERSISTENT_LINKS.map((link) => ({

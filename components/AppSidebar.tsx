@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useClerk } from "@clerk/nextjs";
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { VscLibrary } from "react-icons/vsc";
@@ -118,7 +117,6 @@ const NAV = [
 ];
 
 export default function AppSidebar() {
-  const { signOut } = useClerk();
   const path = usePathname() ?? "";
   const [avatarUrl, setAvatarUrl] = useState<string>("");
   const [initials, setInitials] = useState<string>("");
@@ -184,7 +182,7 @@ export default function AppSidebar() {
 
   function handleLogout() {
     setSigningOut(true);
-    signOut(() => { window.location.replace("/"); }).catch(() => { window.location.replace("/"); });
+    window.location.replace("/api/auth/logout");
   }
 
   const dockStyle: React.CSSProperties = {
