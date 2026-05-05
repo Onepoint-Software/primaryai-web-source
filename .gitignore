@@ -11,3 +11,4 @@ out/
 *.mp4
 !Flow_202604210959.mp4
 .wrangler/
+tsconfig.tsbuildinfo
