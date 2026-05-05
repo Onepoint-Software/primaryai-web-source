@@ -846,21 +846,11 @@ function WellbeingSummaryCard() {
       </div>
 
       {/* Stats row */}
-      <div style={{ position: "relative", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.55rem", padding: "0.8rem 0.85rem", borderBottom: "1px solid color-mix(in srgb, var(--border) 72%, transparent)" }}>
+      <div style={{ display: "flex", gap: "1.5rem", padding: "0.8rem 1rem", borderBottom: "1px solid color-mix(in srgb, var(--border) 72%, transparent)" }}>
         {stats.map(({ value, label, color }) => (
-          <div
-            key={label}
-            style={{
-              padding: "0.78rem 0.65rem",
-              textAlign: "center",
-              borderRadius: "13px",
-              border: `1px solid color-mix(in srgb, ${color} 22%, var(--border))`,
-              background: `linear-gradient(180deg, color-mix(in srgb, ${color} 10%, var(--surface)) 0%, color-mix(in srgb, var(--surface) 94%, ${color} 6%) 100%)`,
-              boxShadow: "inset 0 1px 0 rgb(255 255 255 / 0.08)",
-            }}
-          >
-            <p style={{ margin: "0 0 0.22rem", fontSize: "1.55rem", fontWeight: 900, color, lineHeight: 1, letterSpacing: "-0.02em" }}>{value}</p>
-            <p style={{ margin: 0, fontSize: "0.68rem", color: "var(--muted)", fontWeight: 700 }}>{label}</p>
+          <div key={label} style={{ display: "flex", alignItems: "baseline", gap: "0.4rem" }}>
+            <span style={{ fontSize: "1.25rem", fontWeight: 900, color, lineHeight: 1, letterSpacing: "-0.02em" }}>{value}</span>
+            <span style={{ fontSize: "0.72rem", color: "var(--muted)", fontWeight: 600 }}>{label}</span>
           </div>
         ))}
       </div>
