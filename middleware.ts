@@ -1,4 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
 const isProtectedRoute = createRouteMatcher([
   "/dashboard(.*)",
@@ -17,9 +18,29 @@ const isProtectedRoute = createRouteMatcher([
   "/survey-responses(.*)",
 ]);
 
+const needsProfileRoute = createRouteMatcher([
+  "/dashboard(.*)",
+  "/lesson-pack(.*)",
+  "/ai-planner(.*)",
+  "/critical-planner(.*)",
+  "/library(.*)",
+  "/notes(.*)",
+  "/coverage(.*)",
+  "/school(.*)",
+  "/wellbeing-report(.*)",
+]);
+
 export default clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req)) {
     await auth.protect();
+  }
+
+  const { userId } = await auth();
+  if (userId && needsProfileRoute(req)) {
+    const profileComplete = req.cookies.get("pa_profile_complete")?.value;
+    if (profileComplete !== "1") {
+      return NextResponse.redirect(new URL("/profile-setup", req.url));
+    }
   }
 });
 
