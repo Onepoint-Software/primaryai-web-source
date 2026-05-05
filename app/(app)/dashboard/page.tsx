@@ -1940,11 +1940,11 @@ export default function DashboardPage() {
                 <p style={{ margin: "0 0 0.9rem", fontSize: "0.98rem", fontWeight: 800, color: "var(--text)", letterSpacing: "-0.01em", lineHeight: 1.2 }}>
                   {greeting}{firstName ? `, ${firstName}` : ""} 👋
                 </p>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.5rem" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
                   {stats.map(({ value, label, color }) => (
-                    <div key={label} style={{ padding: "0.7rem 0.6rem", borderRadius: "12px", border: `1px solid color-mix(in srgb, ${color} 22%, var(--border))`, background: `color-mix(in srgb, ${color} 7%, var(--surface))`, textAlign: "center" as const }}>
-                      <p style={{ margin: "0 0 0.15rem", fontSize: "1.4rem", fontWeight: 900, color, lineHeight: 1, letterSpacing: "-0.02em" }}>{value}</p>
-                      <p style={{ margin: 0, fontSize: "0.62rem", color: "var(--muted)", fontWeight: 600, lineHeight: 1.3 }}>{label}</p>
+                    <div key={label} style={{ display: "flex", alignItems: "baseline", gap: "0.5rem" }}>
+                      <span style={{ fontSize: "1.1rem", fontWeight: 800, color, lineHeight: 1, letterSpacing: "-0.02em", minWidth: "2rem" }}>{value}</span>
+                      <span style={{ fontSize: "0.78rem", color: "var(--muted)", fontWeight: 500 }}>{label}</span>
                     </div>
                   ))}
                 </div>
