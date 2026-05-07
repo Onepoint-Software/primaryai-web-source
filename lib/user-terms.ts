@@ -164,7 +164,7 @@ export async function replaceUserTerms(userId: string, terms: Array<Partial<User
     .delete()
     .eq("user_id", userId);
 
-  if (deleteError) {
+  if (deleteError && cleaned.length > 0) {
     throw new Error("Could not update term dates.");
   }
 
